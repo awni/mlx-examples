@@ -1,64 +1,47 @@
+# Copyright © 2024 Apple Inc.
 
 import torch
 import numpy as np
 import mlx.core as mx
-from huggingface_hub import snapshot_download
-import json
-from pathlib import Path
-from models.stdit3 import STDiT3
 
-def fetch_from_hub(hf_repo: str, patterns=None) -> Path:
-    default_patterns = [ "*.json", "*.safetensors"]
-    model_path = Path(
-        snapshot_download(
-            repo_id=hf_repo,
-            allow_patterns=patterns or default_patterns,
-        )
-    )
-    return model_path
+import sys
+sys.path.append(".")
 
-path = fetch_from_hub("hpcai-tech/OpenSora-STDiT-v3")
-with open(path / "config.json", 'r') as fid:
-    config = json.load(fid)
+from utils import load_model
+from models import STDiT3
 
 
-model = STDiT3(**config)
+def get_inputs():
+    np.random.seed(0)
+    x = np.random.uniform(size=[2, 8, 30, 40, 4]).astype(np.float32)
+    timestep = np.array([1000., 1000.]).astype(np.float32)
+    mask = np.zeros((1, 20)).astype(np.int32)
+    mask[:10 ] = 1
+    x_mask = np.ones((2, 8)).astype(np.bool_)
+    y = np.random.uniform(size=[2, 20, 4096])
+    height = np.array([240])
+    width = np.array([320])
+    fps = np.array([24])
+    return [x, timestep, y, mask, x_mask, fps, height, width]
 
-def convert(key, value):
-    if "rope.freqs" in key:
-        if value.ndim == 4:
-            value = value.moveaxis(1, 3)
-        if value.ndim == 5:
-            value = value.moveaxis(1, 4)
-    if key.endswith("scale") or key.endswith("shift"):
-        value = value.squeeze()
-    return key, value
 
-np.random.seed(0)
-x = np.random.uniform(size=[2, 8, 30, 40, 4]).astype(np.float32)
-timestep = np.array([1000., 1000.]).astype(np.float32)
-mask = np.zeros((1, 20)).astype(np.int32)
-mask[:10 ] = 1
-x_mask = np.ones((2, 8)).astype(np.bool_)
-y = np.random.uniform(size=[2, 1, 20, 4096])
-height = np.array([240])
-width = np.array([320])
-fps = np.array([24])
-from opensora.models.stdit import stdit3
-pt_model = stdit3.STDiT3.from_pretrained("hpcai-tech/OpenSora-STDiT-v3")
+def compute_pt(inputs):
+    from opensora.models.stdit import stdit3
+    pt_model = stdit3.STDiT3.from_pretrained("hpcai-tech/OpenSora-STDiT-v3")
+    pt_inputs = list(map(torch.tensor, inputs))
+    pt_inputs[0] = pt_inputs[0].moveaxis(4, 1)
+    pt_inputs[2] = pt_inputs[2].unsqueeze(1)
+    pt_out = pt_model(*pt_inputs)
+    return pt_out.moveaxis(1, 4).detach().numpy()
 
-inputs = [x, timestep, y, mask, x_mask, fps, height, width]
-pt_inputs = list(map(torch.tensor, inputs))
-pt_inputs[0] = pt_inputs[0].moveaxis(4, 1)
+def compute_mx(inputs):
+    # Load converted weights
+    model = load_model("mlx_models/OpenSora-STDiT-v3", STDiT3)
+    return model(*map(mx.array, inputs))
 
-#pt_out = pt_model(*pt_inputs)
-
-weights = mx.load(str(path / "model.safetensors"))
-weights.pop("rope.freqs")
-v = weights["x_embedder.proj.weight"]
-weights["x_embedder.proj.weight"] = mx.moveaxis(v, 1, 4)
-
-model.load_weights(list(weights.items()))
-mx_out = model(*map(mx.array, inputs))
-import pdb
-pdb.set_trace()
+# Compare
+inputs = get_inputs()
+pt_out = compute_pt(inputs)
+mx_out = compute_mx(inputs)
+mx.eval(mx_out)
+np.allclose(mx_out, pt_out, rtol=1e-3, atol=1e-1)

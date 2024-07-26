@@ -8,6 +8,26 @@ import mlx.core as mx
 import mlx.nn as nn
 
 
+class RoPE(nn.Module):
+    def __init__(self, dims):
+        super().__init__()
+        self.dims = dims
+        self.freqs = mx.zeros((dims // 2,))
+
+    def __call__(self, x):
+        N = x.shape[-2]
+        positions = mx.arange(N)
+        theta = positions[:, None] * self.freqs[None, :]
+        cos = mx.cos(theta)
+        sin = mx.sin(theta)
+
+        x1 = x[..., ::2]
+        x2 = x[..., 1::2]
+        lx = x1 * cos - x2 * sin
+        rx = x1 * sin + x2 * cos
+        return mx.concatenate([lx, rx], axis=-1)
+
+
 class Mlp(nn.Module):
     def __init__(
             self,
@@ -107,7 +127,7 @@ class Attention(nn.Module):
         self.rope = False
         if rope is not None:
             self.rope = True
-            self.rotary_emb = rope
+            self._rotary_emb = rope
 
 
     def __call__(self, x: mx.array):
@@ -119,8 +139,8 @@ class Attention(nn.Module):
         q, k, v = qkv.split(3, axis=1)
         q, k = self.q_norm(q), self.k_norm(k)
         if self.rope:
-            q = self.rotary_emb(q)
-            k = self.rotary_emb(k)
+            q = self._rotary_emb(q)
+            k = self._rotary_emb(k)
 
         x = mx.fast.scaled_dot_product_attention(
             q, k, v, scale=self.scale, mask=None

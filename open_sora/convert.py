@@ -6,7 +6,6 @@ import mlx.core as mx
 import mlx.nn as nn
 from mlx.utils import tree_flatten
 from pathlib import Path
-import torch
 from transformers import AutoConfig, AutoModel, AutoTokenizer
 from typing import Any, Dict, Tuple, Union
 
@@ -238,7 +237,7 @@ def load_t5(hf_path):
 
     # TODO, consider using bfloat16 here, fp16 doesn't play nice
     weights = [
-        (replace(k), mx.array(v) for k, v in model.state_dict().items()
+        (replace(k), mx.array(v)) for k, v in model.state_dict().items()
     ]
     tokenizer = AutoTokenizer.from_pretrained(hf_path)
     model = models.T5(**config)
@@ -250,7 +249,6 @@ def load_stdit(hf_path):
     with open(path / "config.json", 'r') as fid:
         config = json.load(fid)
     weights = mx.load(str(path / "model.safetensors"))
-    weights.pop("rope.freqs")
     v = weights["x_embedder.proj.weight"]
     weights["x_embedder.proj.weight"] = mx.moveaxis(v, 1, 4)
 
@@ -324,7 +322,6 @@ if __name__ == "__main__":
         upload_repo=t5_upload_repo,
         hf_path=t5_hf_path,
     )
-    exit(0)
 
     # Load and convert VAE
     vae_hf_path = "hpcai-tech/OpenSora-VAE-v1.2"

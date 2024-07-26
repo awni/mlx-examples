@@ -140,10 +140,9 @@ class Encoder(nn.Module):
             if i < self.num_blocks - 1:
                 if self.temporal_downsample[i]:
                     t_stride = 2 if self.temporal_downsample[i] else 1
-                    s_stride = 1
                     self.conv_blocks.append(
                         self.conv_fn(
-                            prev_filters, filters, kernel_size=(3, 3, 3), strides=(t_stride, s_stride, s_stride)
+                            prev_filters, filters, kernel_size=(3, 3, 3), strides=(t_stride, 1, 1)
                         )
                     )
                     prev_filters = filters  # update in_channels
@@ -202,7 +201,6 @@ class Decoder(nn.Module):
         self.temporal_downsample = temporal_downsample
         self.num_groups = num_groups
         self.embedding_dim = latent_embed_dim
-        self.s_stride = 1
 
         self.activation_fn = get_activation(activation_fn)
         self.conv_fn = CausalConv3d
@@ -246,7 +244,7 @@ class Decoder(nn.Module):
                     self.conv_blocks.insert(
                         0,
                         self.conv_fn(
-                            prev_filters, prev_filters * t_stride * self.s_stride * self.s_stride, kernel_size=(3, 3, 3)
+                            prev_filters, prev_filters * t_stride, kernel_size=(3, 3, 3)
                         ),
                     )
                 else:
@@ -269,13 +267,10 @@ class Decoder(nn.Module):
             if i > 0:
                 t_stride = 2 if self.temporal_downsample[i - 1] else 1
                 x = self.conv_blocks[i - 1](x)
-                x = rearrange(
-                    x,
-                    "B (C ts hs ws) T H W -> B C (T ts) (H hs) (W ws)",
-                    ts=t_stride,
-                    hs=self.s_stride,
-                    ws=self.s_stride,
-                )
+                B, T, H, W, C = x.shape
+                x = x.reshape(B, T, H, W, C // t_stride, t_stride)
+                x = x.moveaxis(5, 2)
+                x = x.reshape(B, T * t_stride, H, W, C // t_stride)
 
         x = self.norm1(x)
         x = self.activation_fn(x)
@@ -367,5 +362,5 @@ class VAETemporal(nn.Module):
         )
         z = self.post_quant_conv(z)
         x = self.decoder(z)
-        x = x[:, :, time_padding:]
+        x = x[:, time_padding:]
         return x

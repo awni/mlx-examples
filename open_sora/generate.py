@@ -1,8 +1,6 @@
 # Copyright © 2024 Apple Inc.
 
 import argparse
-import json
-import glob
 import mlx.core as mx
 from transformers import AutoTokenizer
 
@@ -12,8 +10,10 @@ from utils import (
     extract_prompts_loop,
     get_image_size,
     get_num_frames,
+    load_model,
     prepare_multi_resolution_info,
     process_prompts,
+    save_sample,
 )
 
 def parse_args(training=False):
@@ -52,36 +52,6 @@ def parse_args(training=False):
     parser.add_argument("--flow", default=None, type=float, help="flow score")
     parser.add_argument("--camera-motion", default=None, type=str, help="camera motion")
     return parser.parse_args()
-
-
-def load_model(path, model_class):
-    with open(path / "config.json", "r") as f:
-        config = json.load(f)
-
-    weight_files = glob.glob(str(path / "model*.safetensors"))
-    weights = {}
-    for wf in weight_files:
-        weights.update(mx.load(wf))
-
-    model = model_class(**config)
-
-    if (quantization := config.get("quantization", None)) is not None:
-        # Handle legacy models which may not have everything quantized
-        def class_predicate(p, m):
-            if not hasattr(m, "to_quantized"):
-                return False
-            return f"{p}.scales" in weights
-
-        nn.quantize(
-            model,
-            **quantization,
-            class_predicate=class_predicate,
-        )
-
-    model.load_weights(list(weights.items()))
-    model.eval()
-    return model
-
 
 # TODO
 def dframe_to_frame(num):
@@ -301,8 +271,7 @@ def main():
                 save_path = save_sample(
                     video,
                     fps=save_fps,
-                    save_path=save_path,
-                    verbose=verbose >= 2,
+                    save_path=str(save_path),
                 )
 
         start_idx += len(batch_prompts)

@@ -13,6 +13,7 @@ from .blocks import (
     MultiHeadCrossAttention,
     PatchEmbed3D,
     PositionEmbedding2D,
+    RoPE,
     SizeEmbedder,
     T2IFinalLayer,
     TimestepEmbedder,
@@ -87,7 +88,6 @@ class STDiT3Block(nn.Module):
         if x_mask is not None:
             x_m_zero = t2i_modulate(x_normed, shift_msa_zero, scale_msa_zero)
             x_m = self.t_mask_select(x_mask, x_m, x_m_zero, T, S)
-
 
         # attention
         if self.temporal:
@@ -170,7 +170,7 @@ class STDiT3(nn.Module):
         self.patch_size = patch_size
         self.input_sq_size = input_sq_size
         self.pos_embed = PositionEmbedding2D(hidden_size)
-        self.rope = nn.RoPE(dims=self.hidden_size // self.num_heads)
+        self.rope = RoPE(dims=self.hidden_size // self.num_heads)
 
         # embedding
         self.x_embedder = PatchEmbed3D(patch_size, in_channels, hidden_size)

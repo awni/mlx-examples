@@ -1,7 +1,10 @@
+# Copyright © 2024 Apple Inc.
+
+from bs4 import BeautifulSoup
+import ftfy
 import html
 import re
-
-import ftfy
+import urllib.parse as ul
 
 import mlx.core as mx
 
@@ -81,15 +84,11 @@ def basic_clean(text):
 
 
 BAD_PUNCT_REGEX = re.compile(
-    r"[" + "#®•©™&@·º½¾¿¡§~" + "\)" + "\(" + "\]" + "\[" + "\}" + "\{" + "\|" + "\\" + "\/" + "\*" + r"]{1,}"
-)  # noqa
+    r"[#®•©™&@·º½¾¿¡§~\)\(\]\[\}\{\|\\\/\*]{1,}"
+)
 
 
 def clean_caption(caption):
-    import urllib.parse as ul
-
-    from bs4 import BeautifulSoup
-
     caption = str(caption)
     caption = ul.unquote_plus(caption)
     caption = caption.strip().lower()

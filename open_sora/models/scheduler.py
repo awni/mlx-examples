@@ -101,8 +101,6 @@ class RFlow:
             noise_added = mask == 1
 
         for i, t in enumerate(timesteps):
-            import pdb
-            pdb.set_trace()
             print("TIME STEP ", i)
             # mask for adding noise
             if mask is not None:

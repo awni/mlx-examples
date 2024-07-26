@@ -97,15 +97,15 @@ class VideoAutoencoder(nn.Module):
         return (z - self.shift) / self.scale
 
     def decode(self, z, num_frames=None):
-        z = z * self.scale.to(z.dtype) + self.shift.to(z.dtype)
+        z = z * self.scale.astype(z.dtype) + self.shift.astype(z.dtype)
 
         x_z_list = []
-        for i in range(0, z.size(2), self.micro_z_frame_size):
-            z_bs = z[:, :, i : i + self.micro_z_frame_size]
+        for i in range(0, z.shape[1], self.micro_z_frame_size):
+            z_bs = z[:, i : i + self.micro_z_frame_size]
             x_z_bs = self.temporal_vae.decode(z_bs, num_frames=min(self.micro_frame_size, num_frames))
             x_z_list.append(x_z_bs)
             num_frames -= self.micro_frame_size
-        x_z = torch.cat(x_z_list, dim=2)
+        x_z = mx.concatenate(x_z_list, axis=1)
         x = self.spatial_vae.decode(x_z)
         return x
 

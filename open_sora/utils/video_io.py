@@ -17,9 +17,9 @@ def save_sample(x, save_path=None, fps=8):
     x = np.array(normalize(x))
     out = cv2.VideoWriter(
         save_path,
-        cv2.VideoWriter_fourcc(*'h264'),
+        cv2.VideoWriter_fourcc(*'mp4v'),
         fps,
-        (x.shape[1], x.shape[2]),
+        (x.shape[2], x.shape[1]),
     )
     for frame in x:
         out.write(frame)
