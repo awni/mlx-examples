@@ -1,0 +1,4 @@
+ftfy
+mlx
+opencv-python
+transformers
