@@ -2,9 +2,9 @@
 
 import os
 
-import numpy as np
 import mlx.core as mx
 import mlx.nn as nn
+import numpy as np
 
 from .blocks import (
     Attention,
@@ -19,6 +19,7 @@ from .blocks import (
     TimestepEmbedder,
     t2i_modulate,
 )
+
 
 class STDiT3Block(nn.Module):
     def __init__(
@@ -45,9 +46,13 @@ class STDiT3Block(nn.Module):
         self.cross_attn = MultiHeadCrossAttention(hidden_size, num_heads)
         self.norm2 = nn.LayerNorm(hidden_size, eps=1e-6, affine=False)
         self.mlp = Mlp(
-            in_features=hidden_size, hidden_features=int(hidden_size * mlp_ratio), act_layer=nn.GELU(approx="precise")
+            in_features=hidden_size,
+            hidden_features=int(hidden_size * mlp_ratio),
+            act_layer=nn.GELU(approx="precise"),
         )
-        self.scale_shift_table = mx.random.normal(shape=(6, hidden_size)) / hidden_size**0.5
+        self.scale_shift_table = (
+            mx.random.normal(shape=(6, hidden_size)) / hidden_size**0.5
+        )
 
     def t_mask_select(self, x_mask, x, masked_x, T, S):
         # x: [B, (T, S), C]
@@ -66,7 +71,6 @@ class STDiT3Block(nn.Module):
         x,
         y,
         t,
-        mask=None,  # text mask
         x_mask=None,  # temporal mask
         t0=None,  # t with timestamp=0
         T=None,  # number of frames
@@ -78,9 +82,14 @@ class STDiT3Block(nn.Module):
             self.scale_shift_table[None] + t.reshape(B, 6, -1)
         ).split(6, axis=1)
         if x_mask is not None:
-            shift_msa_zero, scale_msa_zero, gate_msa_zero, shift_mlp_zero, scale_mlp_zero, gate_mlp_zero = (
-                self.scale_shift_table[None] + t0.reshape(B, 6, -1)
-            ).split(6, axis=1)
+            (
+                shift_msa_zero,
+                scale_msa_zero,
+                gate_msa_zero,
+                shift_mlp_zero,
+                scale_mlp_zero,
+                gate_mlp_zero,
+            ) = (self.scale_shift_table[None] + t0.reshape(B, 6, -1)).split(6, axis=1)
         # modulate (attention)
         x_normed = self.norm1(x)
         x_m = t2i_modulate(x_normed, shift_msa, scale_msa)
@@ -213,7 +222,9 @@ class STDiT3(nn.Module):
         ]
 
         # final layer
-        self.final_layer = T2IFinalLayer(hidden_size, np.prod(self.patch_size), self.out_channels)
+        self.final_layer = T2IFinalLayer(
+            hidden_size, np.prod(self.patch_size), self.out_channels
+        )
 
     def get_dynamic_size(self, x):
         _, T, H, W, _ = x.shape
@@ -228,19 +239,9 @@ class STDiT3(nn.Module):
         W = W // self.patch_size[2]
         return (T, H, W)
 
-    def encode_text(self, y, mask=None):
-        y = self.y_embedder(y) # [B, N_token, C]
-        if mask is not None:
-            # TODO
-            #y = y.masked_select(mask.unsqueeze(-1) != 0).view(1, -1, self.hidden_size)
-            #y = y * mask.expand_dims(-1)
-            #y_lens = mask.sum(axis=1).tolist()
-            y_lens = [y.shape[1]] * y.shape[0]
-        else:
-            y_lens = [y.shape[1]] * y.shape[0]
-        return y, y_lens
-
-    def __call__(self, x, timestep, y, mask=None, x_mask=None, fps=None, height=None, width=None, **kwargs):
+    def __call__(
+        self, x, timestep, y, x_mask=None, fps=None, height=None, width=None, **kwargs
+    ):
         dtype = self.x_embedder.proj.weight.dtype
         B = x.shape[0]
         x = x.astype(dtype)
@@ -274,10 +275,8 @@ class STDiT3(nn.Module):
             t0_mlp = self.t_block[1](t0_mlp)
 
         # === get y embed ===
-        if self.skip_y_embedder:
-            y_lens = mask
-        else:
-            y, y_lens = self.encode_text(y, mask)
+        if not self.skip_y_embedder:
+            y = self.y_embedder(y)  # [B, N_token, C]
 
         # === get x embed ===
         x = self.x_embedder(x)  # [B, N, C]
@@ -287,9 +286,11 @@ class STDiT3(nn.Module):
         x = mx.flatten(x, 1, 2)
 
         # === blocks ===
-        for spatial_block, temporal_block in zip(self.spatial_blocks, self.temporal_blocks):
-            x = spatial_block(x, y, t_mlp, y_lens, x_mask, t0_mlp, T, S)
-            x = temporal_block(x, y, t_mlp, y_lens, x_mask, t0_mlp, T, S)
+        for spatial_block, temporal_block in zip(
+            self.spatial_blocks, self.temporal_blocks
+        ):
+            x = spatial_block(x, y, t_mlp, x_mask, t0_mlp, T, S)
+            x = temporal_block(x, y, t_mlp, x_mask, t0_mlp, T, S)
 
         # === final layer ===
         x = self.final_layer(x, t, x_mask, t0, T, S)

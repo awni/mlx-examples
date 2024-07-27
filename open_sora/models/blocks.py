@@ -3,9 +3,9 @@
 import math
 from typing import Optional
 
-import numpy as np
 import mlx.core as mx
 import mlx.nn as nn
+import numpy as np
 
 
 class RoPE(nn.Module):
@@ -30,20 +30,22 @@ class RoPE(nn.Module):
 
 class Mlp(nn.Module):
     def __init__(
-            self,
-            in_features,
-            hidden_features=None,
-            out_features=None,
-            act_layer=None,
-            norm_layer=None,
-            bias=True,
+        self,
+        in_features,
+        hidden_features=None,
+        out_features=None,
+        act_layer=None,
+        norm_layer=None,
+        bias=True,
     ):
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
         self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
         self.act = act_layer
-        self.norm = norm_layer(hidden_features) if norm_layer is not None else nn.Identity()
+        self.norm = (
+            norm_layer(hidden_features) if norm_layer is not None else nn.Identity()
+        )
         self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
 
     def __call__(self, x):
@@ -56,7 +58,6 @@ class Mlp(nn.Module):
 
 def t2i_modulate(x, shift, scale):
     return x * (1 + scale) + shift
-
 
 
 class PatchEmbed3D(nn.Module):
@@ -83,7 +84,9 @@ class PatchEmbed3D(nn.Module):
         self.in_chans = in_chans
         self.embed_dim = embed_dim
 
-        self.proj = nn.Conv3d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
+        self.proj = nn.Conv3d(
+            in_chans, embed_dim, kernel_size=patch_size, stride=patch_size
+        )
 
     def __call__(self, x):
         """Forward function."""
@@ -129,7 +132,6 @@ class Attention(nn.Module):
             self.rope = True
             self._rotary_emb = rope
 
-
     def __call__(self, x: mx.array):
         B, N, C = x.shape
         qkv = self.qkv(x)
@@ -142,9 +144,7 @@ class Attention(nn.Module):
             q = self._rotary_emb(q)
             k = self._rotary_emb(k)
 
-        x = mx.fast.scaled_dot_product_attention(
-            q, k, v, scale=self.scale, mask=None
-        )
+        x = mx.fast.scaled_dot_product_attention(q, k, v, scale=self.scale, mask=None)
 
         x = x.swapaxes(1, 2).reshape(B, N, C)
         x = self.proj(x)
@@ -163,21 +163,20 @@ class MultiHeadCrossAttention(nn.Module):
         self.q_linear = nn.Linear(d_model, d_model)
         self.kv_linear = nn.Linear(d_model, d_model * 2)
         self.proj = nn.Linear(d_model, d_model)
-        self.scale = 1.0 / (self.head_dim ** 0.5)
-
+        self.scale = 1.0 / (self.head_dim**0.5)
 
     def __call__(self, x, cond, mask=None):
         # query/value: img tokens; key: condition; mask: if padding tokens
         B, N, C = x.shape
 
-        q = self.q_linear(x).reshape(1, B * N, self.num_heads, self.head_dim)
-        kv = self.kv_linear(cond).reshape(1, B * cond.shape[1], 2 * self.num_heads, self.head_dim)
+        q = self.q_linear(x).reshape(B, N, self.num_heads, self.head_dim)
+        kv = self.kv_linear(cond).reshape(
+            B, cond.shape[1], 2 * self.num_heads, self.head_dim
+        )
         k, v = kv.split(2, axis=2)
         q, k, v = map(lambda x: x.swapaxes(1, 2), (q, k, v))
 
-        x = mx.fast.scaled_dot_product_attention(
-            q, k, v, scale=self.scale, mask=mask
-        )
+        x = mx.fast.scaled_dot_product_attention(q, k, v, scale=self.scale, mask=mask)
 
         x = x.swapaxes(1, 2).reshape(B, -1, C)
         x = self.proj(x)
@@ -193,7 +192,9 @@ class T2IFinalLayer(nn.Module):
         super().__init__()
         self.norm_final = nn.LayerNorm(hidden_size, affine=False, eps=1e-6)
         self.linear = nn.Linear(hidden_size, num_patch * out_channels, bias=True)
-        self.scale_shift_table = mx.random.normal(shape=(2, hidden_size)) / hidden_size**0.5
+        self.scale_shift_table = (
+            mx.random.normal(shape=(2, hidden_size)) / hidden_size**0.5
+        )
         self.out_channels = out_channels
         self.d_t = d_t
         self.d_s = d_s
@@ -219,7 +220,9 @@ class T2IFinalLayer(nn.Module):
         x_normed = self.norm_final(x)
         x = t2i_modulate(x_normed, shift, scale)
         if x_mask is not None:
-            shift_zero, scale_zero = (self.scale_shift_table[None] + t0[:, None]).split(2, axis=1)
+            shift_zero, scale_zero = (self.scale_shift_table[None] + t0[:, None]).split(
+                2, axis=1
+            )
             x_zero = t2i_modulate(x_normed, shift_zero, scale_zero)
             x = self.t_mask_select(x_mask, x, x_zero, T, S)
         x = self.linear(x)
@@ -267,14 +270,15 @@ class TimestepEmbedder(nn.Module):
         return t_emb
 
 
-
 class SizeEmbedder(TimestepEmbedder):
     """
     Embeds scalar timesteps into vector representations.
     """
 
     def __init__(self, hidden_size, frequency_embedding_size=256):
-        super().__init__(hidden_size=hidden_size, frequency_embedding_size=frequency_embedding_size)
+        super().__init__(
+            hidden_size=hidden_size, frequency_embedding_size=frequency_embedding_size
+        )
         self.mlp = [
             nn.Linear(frequency_embedding_size, hidden_size, bias=True),
             nn.SiLU(),

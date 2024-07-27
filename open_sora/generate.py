@@ -1,11 +1,11 @@
 # Copyright © 2024 Apple Inc.
 
 import argparse
-import mlx.core as mx
-from transformers import AutoTokenizer
-
-import models
 from pathlib import Path
+
+import mlx.core as mx
+import models
+from transformers import AutoTokenizer
 from utils import (
     extract_prompts_loop,
     get_image_size,
@@ -16,42 +16,75 @@ from utils import (
     save_sample,
 )
 
+
 def parse_args(training=False):
     parser = argparse.ArgumentParser()
 
     # prompt
-    parser.add_argument("--prompt", type=str, nargs="+", help="prompt list", required=True)
+    parser.add_argument(
+        "--prompt", type=str, nargs="+", help="prompt list", required=True
+    )
 
-    parser.add_argument("--seed", default=42, type=int, help="RNG seed for reproducibility")
-    parser.add_argument("--batch-size", default=1, type=int, help="batch size")
-    parser.add_argument("--model", default="mlx_models", type=str, help="path to the models")
-    parser.add_argument("--resolution", default="240p", type=str, help="multi resolution")
+    parser.add_argument(
+        "--seed", default=42, type=int, help="RNG seed for reproducibility"
+    )
+    parser.add_argument(
+        "--model", default="mlx_models", type=str, help="path to the models"
+    )
+    parser.add_argument(
+        "--resolution", default="240p", type=str, help="multi resolution"
+    )
 
     # output
-    parser.add_argument("--save-dir", default="samples/", type=str, help="path to save generated samples")
-    parser.add_argument("--num-sample", default=1, type=int, help="number of samples to generate for one prompt")
+    parser.add_argument(
+        "--save-dir",
+        default="samples/",
+        type=str,
+        help="path to save generated samples",
+    )
+    parser.add_argument(
+        "--num-sample",
+        default=1,
+        type=int,
+        help="number of samples to generate for one prompt",
+    )
 
     # image/video
     parser.add_argument("--num-frames", default=51, type=str, help="number of frames")
     parser.add_argument("--fps", default=24, type=int, help="fps")
     parser.add_argument("--save-fps", default=24, type=int, help="save fps")
-    parser.add_argument("--image-size", default=None, type=int, nargs=2, help="image size")
+    parser.add_argument(
+        "--image-size", default=None, type=int, nargs=2, help="image size"
+    )
     parser.add_argument("--frame-interval", default=1, type=int, help="frame interval")
-    parser.add_argument("--aspect-ratio", default="9:16", type=str, help="aspect ratio (h:w)")
+    parser.add_argument(
+        "--aspect-ratio", default="9:16", type=str, help="aspect ratio (h:w)"
+    )
 
     # hyperparameters
-    parser.add_argument("--num-sampling-steps", default=30, type=int, help="sampling steps")
-    parser.add_argument("--cfg-scale", default=7.0, type=float, help="balance between cond & uncond")
+    parser.add_argument(
+        "--num-sampling-steps", default=30, type=int, help="sampling steps"
+    )
+    parser.add_argument(
+        "--cfg-scale", default=7.0, type=float, help="balance between cond & uncond"
+    )
 
     # reference
     parser.add_argument("--loop", default=1, type=int, help="loop")
-    parser.add_argument("--condition-frame-length", default=5, type=int, help="condition frame length")
-    parser.add_argument("--reference-path", default=None, type=str, nargs="+", help="reference path")
-    parser.add_argument("--mask-strategy", default=None, type=str, nargs="+", help="mask strategy")
+    parser.add_argument(
+        "--condition-frame-length", default=5, type=int, help="condition frame length"
+    )
+    parser.add_argument(
+        "--reference-path", default=None, type=str, nargs="+", help="reference path"
+    )
+    parser.add_argument(
+        "--mask-strategy", default=None, type=str, nargs="+", help="mask strategy"
+    )
     parser.add_argument("--aes", default=6.5, type=float, help="aesthetic score")
     parser.add_argument("--flow", default=None, type=float, help="flow score")
     parser.add_argument("--camera-motion", default=None, type=str, help="camera motion")
     return parser.parse_args()
+
 
 # TODO
 def dframe_to_frame(num):
@@ -59,7 +92,15 @@ def dframe_to_frame(num):
     return num // 5 * 17
 
 
-def append_generated(vae, generated_video, refs_x, mask_strategy, loop_i, condition_frame_length, condition_frame_edit):
+def append_generated(
+    vae,
+    generated_video,
+    refs_x,
+    mask_strategy,
+    loop_i,
+    condition_frame_length,
+    condition_frame_edit,
+):
     ref_x = vae.encode(generated_video)
     for j, refs in enumerate(refs_x):
         if refs is None:
@@ -101,6 +142,7 @@ def find_nearest_point(value, point, max_value):
         t += 1
     return t * point
 
+
 def apply_mask_strategy(z, refs_x, mask_strategys, loop_i, align=None):
     masks = []
     no_mask = True
@@ -125,7 +167,9 @@ def apply_mask_strategy(z, refs_x, mask_strategys, loop_i, align=None):
                 m_ref_start = find_nearest_point(m_ref_start, align, ref.shape[1])
                 m_target_start = find_nearest_point(m_target_start, align, T)
             m_length = min(m_length, T - m_target_start, ref.shape[0] - m_ref_start)
-            z[i, m_target_start : m_target_start + m_length] = ref[:, m_ref_start : m_ref_start + m_length]
+            z[i, m_target_start : m_target_start + m_length] = ref[
+                :, m_ref_start : m_ref_start + m_length
+            ]
             mask[m_target_start : m_target_start + m_length] = edit_ratio
         masks.append(mask)
     if no_mask:
@@ -133,22 +177,17 @@ def apply_mask_strategy(z, refs_x, mask_strategys, loop_i, align=None):
     return mx.stack(masks)
 
 
-def encode_text(text_encoder, tokenizer, prompts, max_length):
+def encode_text(text_encoder, tokenizer, prompt):
     inputs = tokenizer(
-        prompts,
-        max_length=max_length,
-        padding="max_length",
+        prompt,
+        max_length=300,
         truncation=True,
-        return_attention_mask=True,
         add_special_tokens=True,
         return_tensors="mlx",
     )
-    input_ids = inputs["input_ids"]
-    mask = inputs["attention_mask"]
-    n = len(prompts)
-    y = text_encoder.encode(input_ids, mask)
-    y_null = text_encoder.null(n)
-    return mx.concatenate([y, y_null], axis=0), mask
+    y = text_encoder.encode(inputs["input_ids"])
+    y_null = text_encoder.null(1)[:, : y.shape[1]]
+    return mx.concatenate([y, y_null], axis=0)
 
 
 def main():
@@ -192,7 +231,6 @@ def main():
     # == prepare arguments ==
     fps = args.fps
     save_fps = args.save_fps or fps // args.frame_interval
-    batch_size = args.batch_size
     num_sample = args.num_sample
     loop = args.loop
     condition_frame_edit = 0.0
@@ -207,74 +245,65 @@ def main():
         "camera_motion": args.camera_motion,
     }
 
-    # == Iter over prompts ==
-    start_idx = 0
-    for i in range(0, len(prompts), batch_size):
-        # == prepare batch prompts ==
-        batch_prompts = prompts[i : i + batch_size]
-        ms = mask_strategy[i : i + batch_size]
-        refs = reference_path[i : i + batch_size]
+    # == multi-resolution info ==
+    model_args = prepare_multi_resolution_info(
+        len(prompts),
+        image_size,
+        num_frames,
+        fps,
+    )
 
-        # == multi-resolution info ==
-        model_args = prepare_multi_resolution_info(
-            len(batch_prompts), image_size, num_frames, fps,
+    refs = reference_path
+    ms = mask_strategy
+
+    # == Iter over number of sampling for one prompt ==
+    for k in range(num_sample):
+        save_path = save_dir / f"sample_{k}"
+
+        prompts = process_prompts(prompts, score_kwargs)
+
+        # == Iter over loop generation ==
+        video = []
+        for loop_i in range(loop):
+            # == get prompt for loop i ==
+            prompts_loop = extract_prompts_loop(prompts, loop_i)
+
+            # == add condition frames for loop ==
+            if loop_i > 0:
+                refs, ms = append_generated(
+                    vae,
+                    video_clips[-1],
+                    refs,
+                    ms,
+                    loop_i,
+                    condition_frame_length,
+                    condition_frame_edit,
+                )
+
+            # == sampling ==
+            mx.random.seed(1024)  # TODO why seed here?
+            z = mx.random.normal(shape=(1, *latent_size, vae.out_channels))
+            masks = apply_mask_strategy(z, refs, ms, loop_i, align=align)
+
+            text_embeddings = encode_text(text_encoder, tokenizer, prompts)
+            # pass in the inputs and make sure all the args are set right
+            samples = scheduler.sample(
+                model,
+                z,
+                text_embeddings,
+                additional_args=model_args,
+                mask=masks,
+            )
+            samples = vae.decode(samples, num_frames=num_frames)
+            video.append(samples[0, : dframe_to_frame(condition_frame_length) :])
+
+        # == save samples ==
+        save_path = save_sample(
+            mx.concatenate(video, axis=1),
+            fps=save_fps,
+            save_path=str(save_path),
         )
 
-        # == Iter over number of sampling for one prompt ==
-        for k in range(num_sample):
-            save_paths = [
-                save_dir / f"sample_{start_idx + idx:04d}-{k}"
-                for idx in range(len(batch_prompts))
-            ]
-
-            batch_prompts = process_prompts(batch_prompts, score_kwargs)
-
-            # == Iter over loop generation ==
-            video_clips = []
-            for loop_i in range(loop):
-                # == get prompt for loop i ==
-                batch_prompts_loop = extract_prompts_loop(batch_prompts, loop_i)
-
-                # == add condition frames for loop ==
-                if loop_i > 0:
-                    refs, ms = append_generated(
-                        vae, video_clips[-1], refs, ms, loop_i, condition_frame_length, condition_frame_edit
-                    )
-
-                # == sampling ==
-                mx.random.seed(1024) # TODO why seed here?
-                z = mx.random.normal(
-                    shape=(len(batch_prompts), *latent_size, vae.out_channels)
-                )
-                masks = apply_mask_strategy(z, refs, ms, loop_i, align=align)
-
-                text_embeddings, text_mask = encode_text(text_encoder, tokenizer, batch_prompts, max_length)
-                # pass in the inputs and make sure all the args are set right
-                samples = scheduler.sample(
-                    model,
-                    z,
-                    text_embeddings,
-                    text_mask,
-                    additional_args=model_args,
-                    mask=masks,
-                )
-                samples = vae.decode(samples, num_frames=num_frames)
-                video_clips.append(samples)
-
-            # == save samples ==
-            for idx, batch_prompt in enumerate(batch_prompts):
-                save_path = save_paths[idx]
-                video = [video_clips[i][idx] for i in range(loop)]
-                for i in range(1, loop):
-                    video[i] = video[i][:, dframe_to_frame(condition_frame_length) :]
-                video = mx.concatenate(video, axis=1)
-                save_path = save_sample(
-                    video,
-                    fps=save_fps,
-                    save_path=str(save_path),
-                )
-
-        start_idx += len(batch_prompts)
 
 if __name__ == "__main__":
     main()
