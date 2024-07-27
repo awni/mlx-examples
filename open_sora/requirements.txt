@@ -3,3 +3,4 @@ ftfy
 mlx
 opencv-python
 transformers
+tqdm

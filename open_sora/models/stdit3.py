@@ -254,7 +254,7 @@ class STDiT3(nn.Module):
 
         S = H * W
         base_size = round(S**0.5)
-        resolution_sq = (height[0].item() * width[0].item()) ** 0.5
+        resolution_sq = (height * width) ** 0.5
         scale = resolution_sq / self.input_sq_size
         pos_emb = self.pos_embed(H, W, scale=scale, base_size=base_size)
         pos_emb = pos_emb.astype(dtype)
@@ -262,7 +262,7 @@ class STDiT3(nn.Module):
         # === get timestep embed ===
         t = self.t_embedder(timestep, dtype=dtype)  # [B, C]
 
-        fps = self.fps_embedder(fps, B)
+        fps = self.fps_embedder(mx.array([fps], dtype), B)
         t = t + fps
         t_mlp = self.t_block[0](t)
         t_mlp = self.t_block[1](t_mlp)

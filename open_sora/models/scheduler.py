@@ -1,6 +1,7 @@
 # Copyright © 2024 Apple Inc.
 
 import mlx.core as mx
+import tqdm
 
 
 def timestep_transform(
@@ -11,14 +12,14 @@ def timestep_transform(
     scale=1.0,
     num_timesteps=1,
 ):
-    height = model_kwargs["height"].astype(mx.float32)
-    width = model_kwargs["width"].astype(mx.float32)
-    num_frames = model_kwargs["num_frames"].astype(mx.float32)
+    height = model_kwargs["height"]
+    width = model_kwargs["width"]
+    num_frames = model_kwargs["num_frames"]
     t = t / num_timesteps
     resolution = height * width
-    ratio_space = (resolution / base_resolution).sqrt()
+    ratio_space = (resolution / base_resolution) ** 0.5
     num_frames = num_frames // 17 * 5
-    ratio_time = (num_frames / base_num_frames).sqrt()
+    ratio_time = (num_frames / base_num_frames) ** 0.5
 
     ratio = ratio_space * ratio_time * scale
     new_t = ratio * t / (1 + (ratio - 1) * t)
@@ -58,7 +59,6 @@ class RFlow:
         z,
         text_embeddings,
         additional_args=None,
-        mask=None,
     ):
         guidance_scale = self.cfg_scale
 
@@ -69,37 +69,17 @@ class RFlow:
         ]
         if self.use_discrete_timesteps:
             timesteps = [int(round(t)) for t in timesteps]
-        timesteps = [mx.array([t]) for t in timesteps]
         if self.use_timestep_transform:
             timesteps = [
                 timestep_transform(t, additional_args, num_timesteps=self.num_timesteps)
                 for t in timesteps
             ]
 
-        if mask is not None:
-            noise_added = mask == 1
-
-        for i, t in enumerate(timesteps):
-            print("TIME STEP ", i)
-            # mask for adding noise
-            if mask is not None:
-                mask_t = mask * self.num_timesteps
-                x0 = z
-                x_noise = add_noise(
-                    x0, mx.random.normal(shape=x0.shape), t, self.num_timesteps
-                )
-                mask_t_upper = mask_t >= t
-                x_mask = mx.repeat(mask_t_upper, 2, axis=0)
-                mask_add_noise = mask_t_upper & ~noise_added
-                z = mx.where(mx.expand_dims(mask_add_noise, (2, 3, 4)), x_noise, x0)
-                noise_added = mask_t_upper
-            else:
-                x_mask = None
-
+        for i, t in tqdm.tqdm(enumerate(timesteps), total=len(timesteps)):
             # classifier-free guidance
             z_in = mx.repeat(z, 2, axis=0)
-            t = mx.repeat(t, 2, axis=0)
-            pred = model(z_in, t, y=text_embeddings, x_mask=x_mask, **additional_args)
+            t = mx.repeat(mx.array([t]), 2, axis=0)
+            pred = model(z_in, t, y=text_embeddings, x_mask=None, **additional_args)
             pred = mx.split(pred, 2, axis=-1)[0]
             pred_cond, pred_uncond = mx.split(pred, 2, axis=0)
             v_pred = pred_uncond + guidance_scale * (pred_cond - pred_uncond)
@@ -112,9 +92,6 @@ class RFlow:
             )
             dt = dt / self.num_timesteps
             z = z + v_pred * dt
-
-            if mask is not None:
-                z = mx.where(mx.expand_dims(mask_t_upper, (2, 3, 4)), z, x0)
 
             # Eval after each time-step
             mx.eval(z)
