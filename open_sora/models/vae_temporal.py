@@ -17,7 +17,9 @@ class CausalConv3d(nn.Module):
         **kwargs,
     ):
         super().__init__()
-        kernel_size = kernel_size if isinstance(kernel_size, tuple) else ((kernel_size,) * 3)
+        kernel_size = (
+            kernel_size if isinstance(kernel_size, tuple) else ((kernel_size,) * 3)
+        )
         time_kernel_size, height_kernel_size, width_kernel_size = kernel_size
 
         stride = strides[0] if strides is not None else kwargs.pop("stride", 1)
@@ -28,7 +30,7 @@ class CausalConv3d(nn.Module):
 
         self.time_pad = time_pad
         self.time_causal_padding = [
-            (0,0),
+            (0, 0),
             (self.time_pad, 0),
             (height_pad, height_pad),
             (width_pad, width_pad),
@@ -61,14 +63,22 @@ class ResBlock(nn.Module):
         self.use_conv_shortcut = use_conv_shortcut
 
         self.norm1 = nn.GroupNorm(num_groups, in_channels, pytorch_compatible=True)
-        self.conv1 = conv_fn(in_channels, self.filters, kernel_size=(3, 3, 3), bias=False)
+        self.conv1 = conv_fn(
+            in_channels, self.filters, kernel_size=(3, 3, 3), bias=False
+        )
         self.norm2 = nn.GroupNorm(num_groups, self.filters, pytorch_compatible=True)
-        self.conv2 = conv_fn(self.filters, self.filters, kernel_size=(3, 3, 3), bias=False)
+        self.conv2 = conv_fn(
+            self.filters, self.filters, kernel_size=(3, 3, 3), bias=False
+        )
         if in_channels != filters:
             if self.use_conv_shortcut:
-                self.conv3 = conv_fn(in_channels, self.filters, kernel_size=(3, 3, 3), bias=False)
+                self.conv3 = conv_fn(
+                    in_channels, self.filters, kernel_size=(3, 3, 3), bias=False
+                )
             else:
-                self.conv3 = conv_fn(in_channels, self.filters, kernel_size=(1, 1, 1), bias=False)
+                self.conv3 = conv_fn(
+                    in_channels, self.filters, kernel_size=(1, 1, 1), bias=False
+                )
 
     def __call__(self, x):
         residual = x
@@ -142,7 +152,10 @@ class Encoder(nn.Module):
                     t_stride = 2 if self.temporal_downsample[i] else 1
                     self.conv_blocks.append(
                         self.conv_fn(
-                            prev_filters, filters, kernel_size=(3, 3, 3), strides=(t_stride, 1, 1)
+                            prev_filters,
+                            filters,
+                            kernel_size=(3, 3, 3),
+                            strides=(t_stride, 1, 1),
                         )
                     )
                     prev_filters = filters  # update in_channels
@@ -158,9 +171,12 @@ class Encoder(nn.Module):
             prev_filters = filters  # update in_channels
 
         self.norm1 = nn.GroupNorm(
-            self.num_groups, dims=prev_filters, pytorch_compatible=True)
+            self.num_groups, dims=prev_filters, pytorch_compatible=True
+        )
 
-        self.conv2 = self.conv_fn(prev_filters, self.embedding_dim, kernel_size=(1, 1, 1))
+        self.conv2 = self.conv_fn(
+            prev_filters, self.embedding_dim, kernel_size=(1, 1, 1)
+        )
 
     def __call__(self, x):
         x = self.conv_in(x)
@@ -215,7 +231,9 @@ class Decoder(nn.Module):
         prev_filters = filters
 
         # last conv
-        self.conv1 = self.conv_fn(self.embedding_dim, filters, kernel_size=(3, 3, 3), bias=True)
+        self.conv1 = self.conv_fn(
+            self.embedding_dim, filters, kernel_size=(3, 3, 3), bias=True
+        )
 
         # last layer res block
         self.res_blocks = []
@@ -253,7 +271,9 @@ class Decoder(nn.Module):
                         nn.Identity(prev_filters),
                     )
 
-        self.norm1 = nn.GroupNorm(self.num_groups, prev_filters)
+        self.norm1 = nn.GroupNorm(
+            self.num_groups, prev_filters, pytorch_compatible=True
+        )
 
         self.conv_out = self.conv_fn(filters, in_out_channels, 3)
 
@@ -276,6 +296,7 @@ class Decoder(nn.Module):
         x = self.activation_fn(x)
         x = self.conv_out(x)
         return x
+
 
 class VAETemporal(nn.Module):
     def __init__(
@@ -330,7 +351,8 @@ class VAETemporal(nn.Module):
                 time_padding = (
                     0
                     if (input_size[i] % self.time_downsample_factor == 0)
-                    else self.time_downsample_factor - input_size[i] % self.time_downsample_factor
+                    else self.time_downsample_factor
+                    - input_size[i] % self.time_downsample_factor
                 )
                 lsize = (input_size[i] + time_padding) // self.patch_size[i]
             else:

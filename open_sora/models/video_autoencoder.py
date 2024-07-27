@@ -1,11 +1,11 @@
+import os
 from typing import List
 
 import mlx.core as mx
 import mlx.nn as nn
-import os
 
-from .vae_temporal import VAETemporal
 from .autoencoder_kl import AutoencoderKL
+from .vae_temporal import VAETemporal
 
 
 class VideoAutoencoderKL(nn.Module):
@@ -55,30 +55,36 @@ class VideoAutoencoderKL(nn.Module):
     def get_latent_size(self, input_size):
         latent_size = []
         for i in range(3):
-            latent_size.append(input_size[i] // self.patch_size[i] if input_size[i] is not None else None)
+            latent_size.append(
+                input_size[i] // self.patch_size[i]
+                if input_size[i] is not None
+                else None
+            )
         return latent_size
 
 
 class VideoAutoencoder(nn.Module):
 
     def __init__(
-            self,
-            micro_frame_size: int,
-            scale: List[float],
-            shift: List[float],
-            vae_2d: dict,
-            spatial_vae: dict,
-            **kwargs,
+        self,
+        micro_frame_size: int,
+        scale: List[float],
+        shift: List[float],
+        vae_2d: dict,
+        spatial_vae: dict,
+        **kwargs,
     ):
         super().__init__()
         self.spatial_vae = VideoAutoencoderKL(
-            micro_batch_size=vae_2d["micro_batch_size"],
-            config=spatial_vae)
+            micro_batch_size=vae_2d["micro_batch_size"], config=spatial_vae
+        )
         self.temporal_vae = VAETemporal(
             temporal_downsample=(False, True, True),
         )
         self.micro_frame_size = micro_frame_size
-        self.micro_z_frame_size = self.temporal_vae.get_latent_size([micro_frame_size, None, None])[0]
+        self.micro_z_frame_size = self.temporal_vae.get_latent_size(
+            [micro_frame_size, None, None]
+        )[0]
         self.out_channels = self.temporal_vae.out_channels
 
         # normalization parameters
@@ -87,7 +93,6 @@ class VideoAutoencoder(nn.Module):
 
     def encode(self, x):
         x_z = self.spatial_vae.encode(x)
-
         z_list = []
         for i in range(0, x_z.shape[1], self.micro_frame_size):
             x_z_bs = x_z[:, i : i + self.micro_frame_size]
@@ -96,13 +101,15 @@ class VideoAutoencoder(nn.Module):
         z = mx.concatenate(z_list, axis=1)
         return (z - self.shift) / self.scale
 
-    def decode(self, z, num_frames=None):
+    def decode(self, z, num_frames):
         z = z * self.scale.astype(z.dtype) + self.shift.astype(z.dtype)
 
         x_z_list = []
         for i in range(0, z.shape[1], self.micro_z_frame_size):
             z_bs = z[:, i : i + self.micro_z_frame_size]
-            x_z_bs = self.temporal_vae.decode(z_bs, num_frames=min(self.micro_frame_size, num_frames))
+            x_z_bs = self.temporal_vae.decode(
+                z_bs, num_frames=min(self.micro_frame_size, num_frames)
+            )
             x_z_list.append(x_z_bs)
             num_frames -= self.micro_frame_size
         x_z = mx.concatenate(x_z_list, axis=1)
@@ -111,11 +118,17 @@ class VideoAutoencoder(nn.Module):
 
     def get_latent_size(self, input_size):
         if self.micro_frame_size is None or input_size[0] is None:
-            return self.temporal_vae.get_latent_size(self.spatial_vae.get_latent_size(input_size))
+            return self.temporal_vae.get_latent_size(
+                self.spatial_vae.get_latent_size(input_size)
+            )
         else:
             sub_input_size = [self.micro_frame_size, input_size[1], input_size[2]]
-            sub_latent_size = self.temporal_vae.get_latent_size(self.spatial_vae.get_latent_size(sub_input_size))
-            sub_latent_size[0] = sub_latent_size[0] * (input_size[0] // self.micro_frame_size)
+            sub_latent_size = self.temporal_vae.get_latent_size(
+                self.spatial_vae.get_latent_size(sub_input_size)
+            )
+            sub_latent_size[0] = sub_latent_size[0] * (
+                input_size[0] // self.micro_frame_size
+            )
             remain_temporal_size = [input_size[0] % self.micro_frame_size, None, None]
             if remain_temporal_size[0] > 0:
                 remain_size = self.temporal_vae.get_latent_size(remain_temporal_size)
