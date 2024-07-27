@@ -295,7 +295,7 @@ def main():
                 mask=masks,
             )
             samples = vae.decode(samples, num_frames=num_frames)
-            video.append(samples[0, : dframe_to_frame(condition_frame_length) :])
+            video.append(samples[0, dframe_to_frame(condition_frame_length) :])
 
         # == save samples ==
         save_path = save_sample(
