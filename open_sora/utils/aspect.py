@@ -1,7 +1,8 @@
+# Copyright © 2024 Apple Inc.
+
 import math
 
 
-# computation
 def get_h_w(a, ts, eps=1e-4):
     h = (ts * a) ** 0.5
     h = h + eps
@@ -437,12 +438,6 @@ ASPECT_RATIO_256 = {
 }
 
 
-def get_closest_ratio(height: float, width: float, ratios: dict):
-    aspect_ratio = height / width
-    closest_ratio = min(ratios.keys(), key=lambda ratio: abs(float(ratio) - aspect_ratio))
-    return closest_ratio
-
-
 ASPECT_RATIOS = {
     "144p": (36864, ASPECT_RATIO_144P),
     "256": (65536, ASPECT_RATIO_256),
@@ -460,17 +455,15 @@ ASPECT_RATIOS = {
 }
 
 
-def get_num_pixels(name):
-    return ASPECT_RATIOS[name][0]
-
-
 def get_image_size(resolution, ar_ratio):
     if ar_ratio in ASPECT_RATIO_MAP:
         ar_key = ASPECT_RATIO_MAP[ar_ratio]
     else:
         ar_key = ar_ratio
     rs_dict = ASPECT_RATIOS[resolution][1]
-    assert ar_key in rs_dict, f"Aspect ratio {ar_ratio} not found for resolution {resolution}"
+    assert (
+        ar_key in rs_dict
+    ), f"Aspect ratio {ar_ratio} not found for resolution {resolution}"
     return rs_dict[ar_key]
 
 
