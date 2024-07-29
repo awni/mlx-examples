@@ -1,14 +1,16 @@
 from typing import Optional, Tuple
 
-import numpy as np
 import mlx.core as mx
 import mlx.nn as nn
+import numpy as np
 
-from .unet_2d_blocks import DownEncoderBlock2D, UpDecoderBlock2D, UNetMidBlock2D
+from .unet_2d_blocks import DownEncoderBlock2D, UNetMidBlock2D, UpDecoderBlock2D
+
 
 class Encoder(nn.Module):
     r"""
-    The `Encoder` layer of a variational autoencoder that encodes its input into a latent representation.
+    The encoder layer of a variational autoencoder that encodes its input into
+    a latent representation.
     """
 
     def __init__(
@@ -68,13 +70,17 @@ class Encoder(nn.Module):
 
         # out
         self.conv_norm_out = nn.GroupNorm(
-            num_groups=norm_num_groups, dims=block_out_channels[-1], eps=1e-6,
-            pytorch_compatible=True)
+            num_groups=norm_num_groups,
+            dims=block_out_channels[-1],
+            eps=1e-6,
+            pytorch_compatible=True,
+        )
         self.conv_act = nn.SiLU()
 
         conv_out_channels = 2 * out_channels if double_z else out_channels
-        self.conv_out = nn.Conv2d(block_out_channels[-1], conv_out_channels, 3, padding=1)
-
+        self.conv_out = nn.Conv2d(
+            block_out_channels[-1], conv_out_channels, 3, padding=1
+        )
 
     def __call__(self, sample: mx.array):
 
@@ -97,7 +103,8 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     r"""
-    The `Decoder` layer of a variational autoencoder that decodes its latent representation into an output sample.
+    The decoder layer of a variational autoencoder that decodes its latent
+    representation into an output sample.
     """
 
     def __init__(
@@ -160,11 +167,13 @@ class Decoder(nn.Module):
 
         # out
         self.conv_norm_out = nn.GroupNorm(
-            num_groups=norm_num_groups, dims=block_out_channels[0], eps=1e-6,
-            pytorch_compatible=True)
+            num_groups=norm_num_groups,
+            dims=block_out_channels[0],
+            eps=1e-6,
+            pytorch_compatible=True,
+        )
         self.conv_act = nn.SiLU()
         self.conv_out = nn.Conv2d(block_out_channels[0], out_channels, 3, padding=1)
-
 
     def __call__(
         self,

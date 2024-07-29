@@ -24,7 +24,6 @@ class AutoencoderKL(nn.Module):
         latent_channels: int = 4,
         norm_num_groups: int = 32,
         sample_size: int = 32,
-        scaling_factor: float = 0.18215,
         use_quant_conv: bool = True,
         use_post_quant_conv: bool = True,
         **kwargs,
@@ -56,8 +55,16 @@ class AutoencoderKL(nn.Module):
             act_fn=act_fn,
         )
 
-        self.quant_conv = nn.Conv2d(2 * latent_channels, 2 * latent_channels, 1) if use_quant_conv else None
-        self.post_quant_conv = nn.Conv2d(latent_channels, latent_channels, 1) if use_post_quant_conv else None
+        self.quant_conv = (
+            nn.Conv2d(2 * latent_channels, 2 * latent_channels, 1)
+            if use_quant_conv
+            else None
+        )
+        self.post_quant_conv = (
+            nn.Conv2d(latent_channels, latent_channels, 1)
+            if use_post_quant_conv
+            else None
+        )
 
     def encode(self, x: mx.array):
         """
@@ -74,7 +81,6 @@ class AutoencoderKL(nn.Module):
 
         posterior = DiagonalGaussianDistribution(moments)
         return posterior
-
 
     def decode(self, z: mx.array):
         """

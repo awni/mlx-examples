@@ -247,11 +247,14 @@ class TimestepEmbedder(nn.Module):
     def timestep_embedding(t, dim, max_period=10000):
         """
         Create sinusoidal timestep embeddings.
-        :param t: a 1-D array of N indices, one per batch element.
-                          These may be fractional.
-        :param dim: the dimension of the output.
-        :param max_period: controls the minimum frequency of the embeddings.
-        :return: an (N, D) array of positional embeddings.
+        Args:
+            t: a 1-D array of N indices, one per batch element.
+              These may be fractional.
+            dim: the dimension of the output.
+            max_period: controls the minimum frequency of the embeddings.
+
+        Returns:
+            an (N, D) array of positional embeddings.
         """
         # https://github.com/openai/glide-text2im/blob/main/glide_text2im/nn.py
         half = dim // 2

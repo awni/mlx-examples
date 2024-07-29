@@ -229,7 +229,14 @@ index 40e6abb..74bb1ce 100644
  
          # apply all to all to gather back attention heads and split sequence
          # [B, N, NUM_HEAD_PER_DEVICE, HEAD_DIM]  -> [B, SUB_N, NUM_HEAD, HEAD_DIM]
-@@ -472,9 +418,9 @@ class MultiHeadCrossAttention(nn.Module):
+@@ -467,14 +413,14 @@ class MultiHeadCrossAttention(nn.Module):
+         # query/value: img tokens; key: condition; mask: if padding tokens
+         B, N, C = x.shape
+ 
+-        q = self.q_linear(x).view(1, -1, self.num_heads, self.head_dim)
+-        kv = self.kv_linear(cond).view(1, -1, 2, self.num_heads, self.head_dim)
++        q = self.q_linear(x).view(B, -1, self.num_heads, self.head_dim)
++        kv = self.kv_linear(cond).view(B, -1, 2, self.num_heads, self.head_dim)
          k, v = kv.unbind(2)
  
          attn_bias = None

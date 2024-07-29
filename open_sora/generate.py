@@ -6,13 +6,7 @@ from pathlib import Path
 import mlx.core as mx
 import models
 from transformers import AutoTokenizer
-from utils import (
-    get_image_size,
-    get_num_frames,
-    load_model,
-    process_prompt,
-    save_sample,
-)
+from utils import get_image_size, get_num_frames, load_model, process_prompt, save_video
 
 
 def parse_args(training=False):
@@ -29,6 +23,7 @@ def parse_args(training=False):
         "--resolution",
         default="240p",
         type=str,
+        choices=["144p", "240p", "360p", "480p"],
     )
     parser.add_argument(
         "--save-path",
@@ -100,7 +95,6 @@ def main():
     model = load_model(model_path / "OpenSora-STDiT-v3", models.STDiT3)
     tokenizer = AutoTokenizer.from_pretrained(model_path / "t5-v1_1-xxl")
     text_encoder.y_embedder = model.y_embedder  # HACK: for classifier-free guidance
-    max_length = model.y_embedder.y_embedding.shape[0]
 
     # == prepare video size ==
     if args.image_size is None:
@@ -146,7 +140,7 @@ def main():
     samples = vae.decode(samples, num_frames=num_frames)
     samples = samples[0, dframe_to_frame(5) :]
 
-    save_path = save_sample(
+    save_path = save_video(
         samples,
         fps=save_fps,
         save_path=str(args.save_path),

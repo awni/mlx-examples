@@ -1,7 +1,6 @@
 # Copyright © 2024 Apple Inc.
 
 import mlx.core as mx
-import tqdm
 
 
 def timestep_transform(
@@ -75,7 +74,11 @@ class RFlow:
                 for t in timesteps
             ]
 
-        for i, t in tqdm.tqdm(enumerate(timesteps), total=len(timesteps)):
+        for i, t in enumerate(timesteps):
+            print(
+                f"[INFO] Sampling iteration {i+1}/{self.num_sampling_steps} ...",
+                end="\r",
+            )
             # classifier-free guidance
             z_in = mx.repeat(z, 2, axis=0)
             t = mx.repeat(mx.array([t]), 2, axis=0)
@@ -95,4 +98,7 @@ class RFlow:
 
             # Eval after each time-step
             mx.eval(z)
+
+        print("\033[K", end="")
+        print("[INFO] Done sampling.")
         return z

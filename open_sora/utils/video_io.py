@@ -1,12 +1,14 @@
 # Copyright © 2024 Apple Inc.
 
-import cv2
+import av
 import mlx.core as mx
 import numpy as np
 
 
-def save_sample(x, save_path=None, fps=8):
+def save_video(x, save_path=None, fps=8):
     """
+    Save an MLX array as a video.
+
     Args:
         x (mx.array): shape [T, H, W, C]
     """
@@ -17,12 +19,19 @@ def save_sample(x, save_path=None, fps=8):
         return x
 
     x = np.array(normalize(x))
-    out = cv2.VideoWriter(
-        save_path,
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (x.shape[2], x.shape[1]),
-    )
-    for frame in x:
-        out.write(frame)
-    out.release()
+
+    with av.open(save_path, mode="w") as container:
+        stream = container.add_stream("h264", rate=fps)
+        stream.width = x.shape[2]
+        stream.height = x.shape[1]
+        stream.pix_fmt = "yuv420p"
+
+        for img in x:
+            frame = av.VideoFrame.from_ndarray(img, format="rgb24")
+            frame.pict_type = "NONE"
+            for packet in stream.encode(frame):
+                container.mux(packet)
+
+        # Flush stream
+        for packet in stream.encode():
+            container.mux(packet)

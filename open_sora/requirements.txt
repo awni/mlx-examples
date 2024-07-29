@@ -1,5 +1,5 @@
+av
 beautifulsoup4
 ftfy
 mlx
-opencv-python
 transformers
