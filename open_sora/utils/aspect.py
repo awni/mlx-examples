@@ -456,10 +456,7 @@ ASPECT_RATIOS = {
 
 
 def get_image_size(resolution, ar_ratio):
-    if ar_ratio in ASPECT_RATIO_MAP:
-        ar_key = ASPECT_RATIO_MAP[ar_ratio]
-    else:
-        ar_key = ar_ratio
+    ar_key = ASPECT_RATIO_MAP.get(ar_ratio, ar_ratio)
     rs_dict = ASPECT_RATIOS[resolution][1]
     assert (
         ar_key in rs_dict
@@ -482,7 +479,4 @@ NUM_FRAMES_MAP = {
 
 
 def get_num_frames(num_frames):
-    if num_frames in NUM_FRAMES_MAP:
-        return NUM_FRAMES_MAP[num_frames]
-    else:
-        return int(num_frames)
+    return int(NUM_FRAMES_MAP.get(num_frames, num_frames))

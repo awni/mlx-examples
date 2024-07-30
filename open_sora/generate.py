@@ -23,7 +23,7 @@ def parse_args(training=False):
         "--resolution",
         default="240p",
         type=str,
-        choices=["144p", "240p", "360p", "480p"],
+        choices=["144p", "240p", "360p", "480p", "720p"],
     )
     parser.add_argument(
         "--save-path",
@@ -33,11 +33,9 @@ def parse_args(training=False):
     )
     parser.add_argument("--num-frames", default=51, type=str, help="number of frames")
     parser.add_argument("--fps", default=24, type=int, help="fps")
-    parser.add_argument("--save-fps", default=24, type=int, help="save fps")
     parser.add_argument(
         "--image-size", default=None, type=int, nargs=2, help="image size"
     )
-    parser.add_argument("--frame-interval", default=1, type=int, help="frame interval")
     parser.add_argument(
         "--aspect-ratio", default="9:16", type=str, help="aspect ratio (h:w)"
     )
@@ -51,12 +49,6 @@ def parse_args(training=False):
     parser.add_argument("--flow", default=None, type=float, help="flow score")
     parser.add_argument("--camera-motion", default=None, type=str, help="camera motion")
     return parser.parse_args()
-
-
-# TODO
-def dframe_to_frame(num):
-    assert num % 5 == 0, f"Invalid num: {num}"
-    return num // 5 * 17
 
 
 def prepare_multi_resolution_info(image_size, num_frames, fps):
@@ -109,9 +101,6 @@ def main():
         cfg_scale=args.cfg_scale,
     )
 
-    fps = args.fps
-    save_fps = args.save_fps or fps // args.frame_interval
-
     score_kwargs = {
         "aes": args.aes,
         "flow": args.flow,
@@ -122,7 +111,7 @@ def main():
     model_args = prepare_multi_resolution_info(
         image_size,
         num_frames,
-        fps,
+        args.fps,
     )
 
     prompt = process_prompt(args.prompt, score_kwargs)
@@ -138,11 +127,9 @@ def main():
         additional_args=model_args,
     )
     samples = vae.decode(samples, num_frames=num_frames)
-    samples = samples[0, dframe_to_frame(5) :]
-
     save_path = save_video(
-        samples,
-        fps=save_fps,
+        samples[0, 17:],
+        fps=args.fps,
         save_path=str(args.save_path),
     )
 
