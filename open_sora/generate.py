@@ -69,9 +69,7 @@ def encode_text(text_encoder, tokenizer, prompt):
         add_special_tokens=True,
         return_tensors="mlx",
     )
-    y = text_encoder.encode(inputs["input_ids"])
-    y_null = text_encoder.null(1)[:, : y.shape[1]]
-    return mx.concatenate([y, y_null], axis=0)
+    return text_encoder.encode(inputs["input_ids"])
 
 
 def main():
@@ -86,7 +84,6 @@ def main():
     text_encoder = load_model(model_path / "t5-v1_1-xxl", models.T5)
     model = load_model(model_path / "OpenSora-STDiT-v3", models.STDiT3)
     tokenizer = AutoTokenizer.from_pretrained(model_path / "t5-v1_1-xxl")
-    text_encoder.y_embedder = model.y_embedder  # HACK: for classifier-free guidance
 
     # == prepare video size ==
     if args.image_size is None:

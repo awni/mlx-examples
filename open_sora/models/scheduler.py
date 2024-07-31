@@ -61,6 +61,15 @@ class RFlow:
     ):
         guidance_scale = self.cfg_scale
 
+        # Add in null embeddings for CFG
+        text_embeddings = mx.concatenate(
+            [
+                text_embeddings,
+                model.y_embedder.y_embedding[: text_embeddings.shape[1]][None],
+            ],
+            axis=0,
+        )
+
         # prepare timesteps
         timesteps = [
             (1.0 - i / self.num_sampling_steps) * self.num_timesteps

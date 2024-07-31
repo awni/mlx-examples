@@ -5,9 +5,7 @@ import mlx.nn as nn
 import numpy as np
 
 
-def _relative_position_bucket(
-    relative_position, num_buckets=32, max_distance=128
-):
+def _relative_position_bucket(relative_position, num_buckets=32, max_distance=128):
     """
     Adapted from HF Tensorflow:
     https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py
@@ -147,13 +145,13 @@ class DenseActivation(nn.Module):
 
 class TransformerEncoderLayer(nn.Module):
     def __init__(
-            self,
-            d_model,
-            d_ff,
-            feed_forward_proj,
-            d_kv,
-            num_heads,
-            layer_norm_epsilon,
+        self,
+        d_model,
+        d_ff,
+        feed_forward_proj,
+        d_kv,
+        num_heads,
+        layer_norm_epsilon,
     ):
         super().__init__()
         self.attention = MultiHeadAttention(d_model, d_kv, num_heads)
@@ -172,18 +170,18 @@ class TransformerEncoderLayer(nn.Module):
 
 class TransformerEncoder(nn.Module):
     def __init__(
-            self,
-            vocab_size,
-            d_model,
-            d_ff,
-            feed_forward_proj,
-            d_kv,
-            num_heads,
-            num_layers,
-            layer_norm_epsilon,
-            relative_attention_num_buckets,
-            relative_attention_max_distance,
-            **kwargs,
+        self,
+        vocab_size,
+        d_model,
+        d_ff,
+        feed_forward_proj,
+        d_kv,
+        num_heads,
+        num_layers,
+        layer_norm_epsilon,
+        relative_attention_num_buckets,
+        relative_attention_max_distance,
+        **kwargs,
     ):
         super().__init__()
         self.block = [
@@ -194,7 +192,8 @@ class TransformerEncoder(nn.Module):
                 d_kv,
                 num_heads,
                 layer_norm_epsilon,
-            ) for i in range(num_layers)
+            )
+            for i in range(num_layers)
         ]
         self.final_layer_norm = nn.RMSNorm(d_model, eps=layer_norm_epsilon)
         self.embed_tokens = nn.Embedding(vocab_size, d_model)
@@ -218,13 +217,11 @@ class TransformerEncoder(nn.Module):
 
 class T5(nn.Module):
     def __init__(
-            self,
-            vocab_size,
-            d_model,
-            **kwargs,
+        self,
+        vocab_size,
+        d_model,
+        **kwargs,
     ):
-        # TODO, could pop that.
-        self.shared = nn.Embedding(vocab_size, d_model)
         self.encoder = TransformerEncoder(
             vocab_size,
             d_model,
@@ -233,6 +230,3 @@ class T5(nn.Module):
 
     def encode(self, inputs: mx.array, mask: Optional[mx.array] = None):
         return self.encoder(inputs, mask=mask)
-
-    def null(self, n):
-        return mx.repeat(self.y_embedder.y_embedding[None], n, axis=0)

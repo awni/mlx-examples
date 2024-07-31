@@ -1,15 +1,16 @@
 # Copyright © 2024 Apple Inc.
 
 import json
-from huggingface_hub import snapshot_download
-import mlx.core as mx
-import mlx.nn as nn
-from mlx.utils import tree_flatten
 from pathlib import Path
-from transformers import AutoConfig, AutoModel, AutoTokenizer
 from typing import Any, Dict, Tuple, Union
 
+import mlx.core as mx
+import mlx.nn as nn
 import models
+from huggingface_hub import snapshot_download
+from mlx.utils import tree_flatten
+from transformers import AutoConfig, AutoModel, AutoTokenizer
+
 
 def fetch_from_hub(hf_repo: str, patterns=None) -> Path:
     default_patterns = ["*.json", "*.safetensors"]
@@ -187,14 +188,14 @@ def save_config(
 
 def load_vae(hf_path):
     path = fetch_from_hub(hf_path)
-    with open(path / "config.json", 'r') as fid:
+    with open(path / "config.json", "r") as fid:
         config = json.load(fid)
 
     spatial_config_path = fetch_from_hub(
         "PixArt-alpha/pixart_sigma_sdxlvae_T5_diffusers",
         patterns=["vae/*.json"],
     )
-    with open(spatial_config_path / "vae/config.json", 'r') as fid:
+    with open(spatial_config_path / "vae/config.json", "r") as fid:
         spatial_config = json.load(fid)
 
     config["spatial_vae"] = spatial_config
@@ -218,6 +219,7 @@ def load_vae(hf_path):
 
 def load_t5(hf_path):
     from transformers import T5EncoderModel
+
     config = AutoConfig.from_pretrained(hf_path).to_dict()
     model = T5EncoderModel.from_pretrained(hf_path, torch_dtype="auto")
     replacements = [
@@ -230,23 +232,25 @@ def load_t5(hf_path):
         (".layer.0.SelfAttention.", ".attention."),
         (".layer.1.DenseReluDense.", ".dense."),
     ]
+
     def replace(k):
         for o, n in replacements:
             k = k.replace(o, n)
         return k
 
     # TODO, consider using bfloat16 here, fp16 doesn't play nice
-    weights = [
-        (replace(k), mx.array(v)) for k, v in model.state_dict().items()
-    ]
+    weights = model.state_dict()
+    weights.pop("shared.weight")
+    weights = [(replace(k), mx.array(v)) for k, v in weights.items()]
     tokenizer = AutoTokenizer.from_pretrained(hf_path)
     model = models.T5(**config)
     model.load_weights(weights)
     return model, tokenizer, config
 
+
 def load_stdit(hf_path):
     path = fetch_from_hub(hf_path)
-    with open(path / "config.json", 'r') as fid:
+    with open(path / "config.json", "r") as fid:
         config = json.load(fid)
     weights = mx.load(str(path / "model.safetensors"))
     v = weights["x_embedder.proj.weight"]
@@ -262,7 +266,7 @@ def convert(
     model,
     config,
     save_path,
-    tokenizer = None,
+    tokenizer=None,
     quantize: bool = False,
     q_group_size: int = 64,
     q_bits: int = 4,
@@ -286,12 +290,13 @@ def convert(
 
     save_config(config, config_path=save_path / "config.json")
 
-    #if upload_repo is not None:
+    # if upload_repo is not None:
     #    upload_to_hub(save_path, upload_repo, hf_path)
 
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Convert OpenSora models to MLX")
 
     parser.add_argument(
@@ -354,5 +359,3 @@ if __name__ == "__main__":
         upload_repo=stdit_upload_repo,
         hf_path=stdit_hf_path,
     )
-
-

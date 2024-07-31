@@ -75,11 +75,9 @@ class PatchEmbed3D(nn.Module):
         patch_size=(2, 4, 4),
         in_chans=3,
         embed_dim=96,
-        flatten=True,
     ):
         super().__init__()
         self.patch_size = patch_size
-        self.flatten = flatten
 
         self.in_chans = in_chans
         self.embed_dim = embed_dim
@@ -89,8 +87,6 @@ class PatchEmbed3D(nn.Module):
         )
 
     def __call__(self, x):
-        """Forward function."""
-        # padding
         _, D, H, W, _ = x.shape
         padding = [(0, 0)] * 5
         if D % self.patch_size[0] != 0:
@@ -101,9 +97,7 @@ class PatchEmbed3D(nn.Module):
             padding[3] = (0, self.patch_size[2] - W % self.patch_size[2])
         x = mx.pad(x, padding)
         x = self.proj(x)  # (B T H W C)
-        if self.flatten:
-            x = mx.flatten(x, 1, 3)  # BTHWC -> BNC
-        return x
+        return mx.flatten(x, 1, 3)  # BTHWC -> BNC
 
 
 class Attention(nn.Module):
@@ -166,7 +160,6 @@ class MultiHeadCrossAttention(nn.Module):
         self.scale = 1.0 / (self.head_dim**0.5)
 
     def __call__(self, x, cond, mask=None):
-        # query/value: img tokens; key: condition; mask: if padding tokens
         B, N, C = x.shape
 
         q = self.q_linear(x).reshape(B, N, self.num_heads, self.head_dim)
@@ -324,7 +317,6 @@ class CaptionEmbedder(nn.Module):
             act_layer=act_layer,
         )
         self.y_embedding = mx.random.normal(shape=(token_num, in_channels))
-        self.y_embedding = self.y_embedding / in_channels**0.5
 
     def __call__(self, caption):
         return self.y_proj(caption)
