@@ -21,6 +21,7 @@ python generate.py \
 The command takes about a minute on an M2 Ultra and produces a video like the
 following:
 
+https://github.com/user-attachments/assets/55920d02-db1c-4944-bd12-4bb428bf1fcc
 
 To see a list of available options run:
 
