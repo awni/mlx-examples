@@ -296,8 +296,6 @@ class STDiT3(nn.Module):
         x = self.final_layer(x, t, x_mask, t0, T, S)
         x = self.unpatchify(x, T, H, W, Tx, Hx, Wx)
 
-        # cast to float32 for better accuracy
-        x = x.astype(mx.float32)
         return x
 
     def unpatchify(self, x, N_t, N_h, N_w, R_t, R_h, R_w):

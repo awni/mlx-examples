@@ -60,10 +60,8 @@ def upload_to_hub(path: str, upload_repo: str, hf_path: str):
 
     from huggingface_hub import HfApi, ModelCard, logging
 
-    from . import __version__
-
     card = ModelCard.load(hf_path)
-    card.data.tags = ["mlx"] if card.data.tags is None else card.data.tags + ["mlx"]
+    card.data.tags = ["mlx"]
     card.text = dedent(
         f"""
         # {upload_repo}
@@ -238,7 +236,6 @@ def load_t5(hf_path):
             k = k.replace(o, n)
         return k
 
-    # TODO, consider using bfloat16 here, fp16 doesn't play nice
     weights = model.state_dict()
     weights.pop("shared.weight")
     weights = [(replace(k), mx.array(v)) for k, v in weights.items()]
@@ -267,6 +264,7 @@ def convert(
     config,
     save_path,
     tokenizer=None,
+    dtype=None,
     quantize: bool = False,
     q_group_size: int = 64,
     q_bits: int = 4,
@@ -280,6 +278,9 @@ def convert(
     weights = dict(tree_flatten(model.parameters()))
     del model
 
+    if dtype is not None:
+        weights = {k: v.astype(dtype) for k, v in weights.items()}
+
     if isinstance(save_path, str):
         save_path = Path(save_path)
 
@@ -290,8 +291,8 @@ def convert(
 
     save_config(config, config_path=save_path / "config.json")
 
-    # if upload_repo is not None:
-    #    upload_to_hub(save_path, upload_repo, hf_path)
+    if upload_repo is not None:
+        upload_to_hub(save_path, upload_repo, hf_path)
 
 
 if __name__ == "__main__":
@@ -321,6 +322,7 @@ if __name__ == "__main__":
         config,
         save_path=t5_save_path,
         tokenizer=tokenizer,
+        dtype=mx.bfloat16,  # Model doesn't work in fp16
         quantize=args.quantize,
         q_group_size=args.q_group_size,
         q_bits=args.q_bits,
@@ -337,6 +339,7 @@ if __name__ == "__main__":
         model,
         config,
         save_path=vae_save_path,
+        dtype=mx.float16,
         quantize=args.quantize,
         q_group_size=args.q_group_size,
         q_bits=args.q_bits,
@@ -354,6 +357,7 @@ if __name__ == "__main__":
         config,
         save_path=stdit_save_path,
         quantize=args.quantize,
+        dtype=mx.float16,
         q_group_size=args.q_group_size,
         q_bits=args.q_bits,
         upload_repo=stdit_upload_repo,
