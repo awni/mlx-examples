@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, Dict, Tuple, Union
 
 import mlx.core as mx
@@ -60,17 +61,26 @@ def upload_to_hub(path: str, upload_repo: str, hf_path: str):
 
     from huggingface_hub import HfApi, ModelCard, logging
 
-    card = ModelCard.load(hf_path)
-    card.data.tags = ["mlx"]
-    card.text = dedent(
+    content = dedent(
         f"""
-        # {upload_repo}
+        ---
+        language: en
+        license: other
+        library: mlx
+        tags:
+        - mlx
+        ---
 
         The Model [{upload_repo}](https://huggingface.co/{upload_repo}) was
         converted to MLX format from
         [{hf_path}](https://huggingface.co/{hf_path}).
+
+        This model is intended to be used with the [Open-Sora MLX
+        Example](https://github.com/ml-explore/mlx-examples/tree/main/open-sora).
         """
     )
+
+    card = ModelCard(content)
     card.save(os.path.join(path, "README.md"))
 
     logging.set_verbosity_info()

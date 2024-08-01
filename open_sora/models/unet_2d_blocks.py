@@ -1,11 +1,12 @@
 from typing import Any, Dict, Optional, Tuple, Union
 
-import numpy as np
 import mlx.core as mx
 import mlx.nn as nn
+import numpy as np
 
 from .attention import Attention
-from .resnet import ResnetBlock2D, Upsample2D, Downsample2D
+from .resnet import Downsample2D, ResnetBlock2D, Upsample2D
+
 
 class UNetMidBlock2D(nn.Module):
     """
@@ -42,11 +43,15 @@ class UNetMidBlock2D(nn.Module):
         attention_head_dim: int = 1,
     ):
         super().__init__()
-        resnet_groups = resnet_groups if resnet_groups is not None else min(in_channels // 4, 32)
+        resnet_groups = (
+            resnet_groups if resnet_groups is not None else min(in_channels // 4, 32)
+        )
         self.add_attention = add_attention
 
         if attn_groups is None:
-            attn_groups = resnet_groups if resnet_time_scale_shift == "default" else None
+            attn_groups = (
+                resnet_groups if resnet_time_scale_shift == "default" else None
+            )
 
         # there is always at least one resnet
         resnets = [
@@ -108,6 +113,7 @@ class UNetMidBlock2D(nn.Module):
 
         return hidden_states
 
+
 class DownEncoderBlock2D(nn.Module):
     def __init__(
         self,
@@ -143,7 +149,9 @@ class DownEncoderBlock2D(nn.Module):
         if add_downsample:
             self.downsamplers = [
                 Downsample2D(
-                    out_channels, out_channels=out_channels, padding=downsample_padding,
+                    out_channels,
+                    out_channels=out_channels,
+                    padding=downsample_padding,
                 )
             ]
         else:
@@ -196,7 +204,6 @@ class UpDecoderBlock2D(nn.Module):
             self.upsamplers = [Upsample2D(out_channels, out_channels=out_channels)]
         else:
             self.upsamplers = None
-
 
     def __call__(self, hidden_states: mx.array, temb: Optional[mx.array] = None):
         for resnet in self.resnets:

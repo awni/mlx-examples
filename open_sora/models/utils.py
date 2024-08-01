@@ -1,5 +1,6 @@
 import mlx.nn as nn
 
+
 def get_activation(act_fn: str) -> nn.Module:
     """Helper function to get activation function from string.
 

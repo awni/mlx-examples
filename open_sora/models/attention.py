@@ -3,6 +3,7 @@ from typing import Callable, List, Optional, Union
 import mlx.core as mx
 import mlx.nn as nn
 
+
 class Attention(nn.Module):
     r"""
     A cross attention layer.
@@ -49,7 +50,9 @@ class Attention(nn.Module):
         self.query_dim = query_dim
         self.use_bias = bias
         self.is_cross_attention = cross_attention_dim is not None
-        self.cross_attention_dim = cross_attention_dim if cross_attention_dim is not None else query_dim
+        self.cross_attention_dim = (
+            cross_attention_dim if cross_attention_dim is not None else query_dim
+        )
         self.residual_connection = residual_connection
         self.out_dim = out_dim if out_dim is not None else query_dim
 
@@ -57,8 +60,12 @@ class Attention(nn.Module):
 
         self.heads = out_dim // dim_head if out_dim is not None else heads
         self.group_norm = nn.GroupNorm(
-            num_groups=norm_num_groups, dims=query_dim, eps=eps, affine=True,
-            pytorch_compatible=True)
+            num_groups=norm_num_groups,
+            dims=query_dim,
+            eps=eps,
+            affine=True,
+            pytorch_compatible=True,
+        )
 
         self.to_q = nn.Linear(query_dim, self.inner_dim, bias=bias)
 

@@ -17,9 +17,6 @@ def parse_args(training=False):
         "--seed", default=42, type=int, help="RNG seed for reproducibility."
     )
     parser.add_argument(
-        "--model", default="mlx_models", type=str, help="Path to the models."
-    )
-    parser.add_argument(
         "--resolution",
         default="240p",
         type=str,
@@ -78,12 +75,12 @@ def main():
     if args.seed is not None:
         mx.random.seed(args.seed)
 
-    model_path = Path(args.model)
     print("[INFO] Loading models")
-    vae = load_model(model_path / "OpenSora-VAE-v1.2", models.VideoAutoencoder)
-    text_encoder = load_model(model_path / "t5-v1_1-xxl", models.T5)
-    model = load_model(model_path / "OpenSora-STDiT-v3", models.STDiT3)
-    tokenizer = AutoTokenizer.from_pretrained(model_path / "t5-v1_1-xxl")
+    hf_path = "mlx-community"
+    vae = load_model(f"{hf_path}/OpenSora-VAE-v1.2", models.VideoAutoencoder)
+    text_encoder = load_model(f"{hf_path}/DeepFloyd-t5-v1_1-xxl", models.T5)
+    model = load_model(f"{hf_path}/OpenSora-STDiT-v3", models.STDiT3)
+    tokenizer = AutoTokenizer.from_pretrained(f"{hf_path}/DeepFloyd-t5-v1_1-xxl")
 
     # == prepare video size ==
     if args.image_size is None:

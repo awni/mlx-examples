@@ -2,13 +2,21 @@
 
 import glob
 import json
+from pathlib import Path
+
 import mlx.core as mx
 import mlx.nn as nn
-from pathlib import Path
+from huggingface_hub import snapshot_download
+
 
 def load_model(path, model_class):
 
-    path = Path(path)
+    path = Path(
+        snapshot_download(
+            repo_id=path,
+            allow_patterns=["*.json", "*.safetensors"],
+        )
+    )
     with open(path / "config.json", "r") as f:
         config = json.load(f)
 

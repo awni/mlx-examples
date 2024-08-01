@@ -6,6 +6,7 @@ import mlx.nn as nn
 
 from .utils import get_activation
 
+
 def upsample_nearest(x: mx.array, scale_factor: int):
     dims = x.ndim - 2
     shape = list(x.shape)
@@ -38,7 +39,13 @@ class Upsample2D(nn.Module):
         self.interpolate = interpolate
 
         kernel_size = kernel_size or 3
-        self.conv = nn.Conv2d(self.channels, self.out_channels, kernel_size=kernel_size, padding=padding, bias=bias)
+        self.conv = nn.Conv2d(
+            self.channels,
+            self.out_channels,
+            kernel_size=kernel_size,
+            padding=padding,
+            bias=bias,
+        )
 
     def __call__(self, hidden_states: mx.array):
         if self.interpolate:
@@ -61,16 +68,19 @@ class Downsample2D(nn.Module):
         self.out_channels = out_channels or channels
         self.padding = padding
         conv = nn.Conv2d(
-            self.channels, self.out_channels, kernel_size=kernel_size, stride=2, padding=padding, bias=bias
+            self.channels,
+            self.out_channels,
+            kernel_size=kernel_size,
+            stride=2,
+            padding=padding,
+            bias=bias,
         )
 
         self.conv = conv
 
     def __call__(self, hidden_states: mx.array):
         if self.padding == 0:
-            hidden_states = mx.pad(
-                hidden_states,
-                ((0, 0), (0, 1), (0, 1), (0, 0)))
+            hidden_states = mx.pad(hidden_states, ((0, 0), (0, 1), (0, 1), (0, 0)))
         return self.conv(hidden_states)
 
 
@@ -122,10 +132,16 @@ class ResnetBlock2D(nn.Module):
         self.skip_time_act = skip_time_act
 
         self.norm1 = nn.GroupNorm(
-                num_groups=groups, dims=in_channels, eps=eps, affine=True,
-                pytorch_compatible=True)
+            num_groups=groups,
+            dims=in_channels,
+            eps=eps,
+            affine=True,
+            pytorch_compatible=True,
+        )
 
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(
+            in_channels, out_channels, kernel_size=3, stride=1, padding=1
+        )
 
         if temb_channels is not None:
             if self.time_embedding_norm == "default":
@@ -133,20 +149,32 @@ class ResnetBlock2D(nn.Module):
             elif self.time_embedding_norm == "scale_shift":
                 self.time_emb_proj = nn.Linear(temb_channels, 2 * out_channels)
             else:
-                raise ValueError(f"unknown time_embedding_norm : {self.time_embedding_norm} ")
+                raise ValueError(
+                    f"unknown time_embedding_norm : {self.time_embedding_norm} "
+                )
         else:
             self.time_emb_proj = None
 
         self.norm2 = nn.GroupNorm(
-                num_groups=groups, dims=out_channels, eps=eps, affine=True,
-                pytorch_compatible=True)
+            num_groups=groups,
+            dims=out_channels,
+            eps=eps,
+            affine=True,
+            pytorch_compatible=True,
+        )
 
         conv_2d_out_channels = conv_2d_out_channels or out_channels
-        self.conv2 = nn.Conv2d(out_channels, conv_2d_out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(
+            out_channels, conv_2d_out_channels, kernel_size=3, stride=1, padding=1
+        )
 
         self.nonlinearity = get_activation(non_linearity)
 
-        self.use_in_shortcut = self.in_channels != conv_2d_out_channels if use_in_shortcut is None else use_in_shortcut
+        self.use_in_shortcut = (
+            self.in_channels != conv_2d_out_channels
+            if use_in_shortcut is None
+            else use_in_shortcut
+        )
 
         self.conv_shortcut = None
         if self.use_in_shortcut:
