@@ -1,5 +1,5 @@
 av
 beautifulsoup4
 ftfy
-mlx
+mlx>=0.17.0
 transformers
