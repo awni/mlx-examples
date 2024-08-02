@@ -121,7 +121,7 @@ def main():
         additional_args=model_args,
     )
     samples = vae.decode(samples, num_frames=num_frames)
-    save_path = save_video(
+    save_video(
         samples[0, 17:],
         fps=args.fps,
         save_path=str(args.save_path),

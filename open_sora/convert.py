@@ -319,57 +319,57 @@ if __name__ == "__main__":
     parser.add_argument(
         "--q-bits", help="Bits per weight for quantization.", type=int, default=4
     )
+    parser.add_argument(
+        "--upload",
+        help="Upload to Hugging Face.",
+        default=False,
+        action="store_true",
+    )
 
     args = parser.parse_args()
 
     # Load and convert T5
     t5_hf_path = "DeepFloyd/t5-v1_1-xxl"
-    t5_save_path = "mlx_models/t5-v1_1-xxl"
-    t5_upload_repo = "mlx-community/DeepFloyd-t5-v1_1-xxl"
     model, tokenizer, config = load_t5(t5_hf_path)
     convert(
         model,
         config,
-        save_path=t5_save_path,
+        save_path="mlx_models/t5-v1_1-xxl",
         tokenizer=tokenizer,
         dtype=mx.bfloat16,  # Model doesn't work in fp16
         quantize=args.quantize,
         q_group_size=args.q_group_size,
         q_bits=args.q_bits,
-        upload_repo=t5_upload_repo,
+        upload_repo="mlx-community/DeepFloyd-t5-v1_1-xxl" if args.upload else None,
         hf_path=t5_hf_path,
     )
 
     # Load and convert VAE
     vae_hf_path = "hpcai-tech/OpenSora-VAE-v1.2"
-    vae_save_path = "mlx_models/OpenSora-VAE-v1.2"
-    vae_upload_repo = "mlx-community/OpenSora-VAE-v1.2"
     model, config = load_vae(vae_hf_path)
     convert(
         model,
         config,
-        save_path=vae_save_path,
-        dtype=mx.float16,
+        save_path="mlx_models/OpenSora-VAE-v1.2",
+        dtype=mx.bfloat16,
         quantize=args.quantize,
         q_group_size=args.q_group_size,
         q_bits=args.q_bits,
-        upload_repo=vae_upload_repo,
+        upload_repo="mlx-community/OpenSora-VAE-v1.2" if args.upload else None,
         hf_path=vae_hf_path,
     )
 
     # Load and convert STDiT
     stdit_hf_path = "hpcai-tech/OpenSora-STDiT-v3"
-    stdit_save_path = "mlx_models/OpenSora-STDiT-v3"
-    stdit_upload_repo = "mlx-community/OpenSora-STDiT-v3"
     model, config = load_stdit(stdit_hf_path)
     convert(
         model,
         config,
-        save_path=stdit_save_path,
+        save_path="mlx_models/OpenSora-STDiT-v3",
         quantize=args.quantize,
         dtype=mx.float16,
         q_group_size=args.q_group_size,
         q_bits=args.q_bits,
-        upload_repo=stdit_upload_repo,
+        upload_repo="mlx-community/OpenSora-STDiT-v3" if args.upload else None,
         hf_path=stdit_hf_path,
     )
