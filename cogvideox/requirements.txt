@@ -1,0 +1,4 @@
+av
+fire
+mlx>=0.16.2
+transformers
