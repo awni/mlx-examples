@@ -25,7 +25,11 @@ def compute_pt(inputs):
     pt_inputs = dict(inputs)
     pt_inputs["hidden_states"] = np.moveaxis(inputs["hidden_states"], 4, 2)
     for k, v in pt_inputs.items():
-        pt_inputs[k] = torch.tensor(v).to("mps") if v is not None else v
+        if isinstance(v, tuple):
+            v = tuple(torch.tensor(u).to("mps") for u in v)
+        else:
+            v = torch.tensor(v).to("mps") if v is not None else v
+        pt_inputs[k] = v
     output = model(**pt_inputs).sample
     return output.moveaxis(2, 4).detach().cpu().numpy()
 
@@ -36,7 +40,11 @@ def compute_mx(inputs):
     mx.eval(model)
     mx_inputs = dict(inputs)
     for k, v in mx_inputs.items():
-        mx_inputs[k] = mx.array(v) if v is not None else v
+        if isinstance(v, tuple):
+            v = tuple(mx.array(u) for u in v)
+        else:
+            v = mx.array(v) if v is not None else v
+        mx_inputs[k] = v
     return model(**mx_inputs)
 
 
@@ -46,12 +54,12 @@ inputs = {
     "encoder_hidden_states": np.random.uniform(size=[2, 226, 4096]).astype(np.float32),
     "timestep": np.array([999, 999]),
     "timestep_cond": None,
-    "image_rotary_emb": None,
+    "image_rotary_emb": (
+        np.random.uniform(size=(660, 64)).astype(np.float32),
+        np.random.uniform(size=(660, 64)).astype(np.float32),
+    ),
 }
 
 pt_out = compute_pt(inputs)
 mx_out = compute_mx(inputs)
-import pdb
-
-pdb.set_trace()
 assert np.allclose(pt_out, mx_out, rtol=1e-4, atol=1e-2)

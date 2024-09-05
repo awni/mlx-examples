@@ -127,6 +127,127 @@ class CogVideoXLayerNormZero(nn.Module):
         )
 
 
+def get_resize_crop_region_for_grid(src, tgt_width, tgt_height):
+    tw = tgt_width
+    th = tgt_height
+    h, w = src
+    r = h / w
+    if r > (th / tw):
+        resize_height = th
+        resize_width = int(round(th / h * w))
+    else:
+        resize_width = tw
+        resize_height = int(round(tw / w * h))
+
+    crop_top = int(round((th - resize_height) / 2.0))
+    crop_left = int(round((tw - resize_width) / 2.0))
+
+    return (crop_top, crop_left), (crop_top + resize_height, crop_left + resize_width)
+
+
+def get_1d_rotary_pos_embed(
+    dim: int,
+    pos: np.ndarray,
+    theta: float = 10000.0,
+    linear_factor=1.0,
+    ntk_factor=1.0,
+):
+    theta = theta * ntk_factor
+    freqs = (
+        1.0 / (theta ** (mx.arange(0, dim, 2)[: (dim // 2)] / dim)) / linear_factor
+    )  # [D/2]
+    freqs = pos[:, None] * freqs[None]
+    freqs_cos = mx.repeat(mx.cos(freqs), 2, axis=1)
+    freqs_sin = mx.repeat(mx.sin(freqs), 2, axis=1)
+    return freqs_cos, freqs_sin
+
+
+def get_3d_rotary_pos_embed(
+    embed_dim,
+    crops_coords,
+    grid_size,
+    temporal_size,
+    theta: int = 10000,
+) -> Union[mx.array, Tuple[mx.array, mx.array]]:
+    """
+    RoPE for video tokens with 3D structure.
+
+    Args:
+    embed_dim: (`int`):
+        The embedding dimension size, corresponding to hidden_size_head.
+    crops_coords (`Tuple[int]`):
+        The top-left and bottom-right coordinates of the crop.
+    grid_size (`Tuple[int]`):
+        The grid size of the spatial positional embedding (height, width).
+    temporal_size (`int`):
+        The size of the temporal dimension.
+    theta (`float`):
+        Scaling factor for frequency computation.
+
+    Returns:
+        `mx.array`: positional embedding with shape `(temporal_size * grid_size[0] * grid_size[1], embed_dim/2)`.
+    """
+    start, stop = crops_coords
+    grid_size_h, grid_size_w = grid_size
+    grid_h = np.linspace(
+        start[0], stop[0], grid_size_h, endpoint=False, dtype=np.float32
+    )
+    grid_w = np.linspace(
+        start[1], stop[1], grid_size_w, endpoint=False, dtype=np.float32
+    )
+    grid_t = np.linspace(
+        0, temporal_size, temporal_size, endpoint=False, dtype=np.float32
+    )
+
+    # Compute dimensions for each axis
+    dim_t = embed_dim // 4
+    dim_h = embed_dim // 8 * 3
+    dim_w = embed_dim // 8 * 3
+
+    # Temporal frequencies
+    freqs_t = get_1d_rotary_pos_embed(dim_t, grid_t)
+    # Spatial frequencies for height and width
+    freqs_h = get_1d_rotary_pos_embed(dim_h, grid_h)
+    freqs_w = get_1d_rotary_pos_embed(dim_w, grid_w)
+
+    # Broadcast and concatenate temporal and spaial frequencies (height and width) into a 3d tensor
+    def combine_time_height_width(freqs_t, freqs_h, freqs_w):
+        shape = (temporal_size, grid_size_h, grid_size_w)
+        freqs_t = mx.broadcast_to(freqs_t[:, None, None, :], shape + (dim_t,))
+        freqs_h = mx.broadcast_to(freqs_h[None, :, None, :], shape + (dim_h,))
+        freqs_w = mx.broadcast_to(freqs_w[None, None, :, :], shape + (dim_w,))
+        freqs = mx.concatenate([freqs_t, freqs_h, freqs_w], axis=-1)
+        freqs = freqs.reshape(temporal_size * grid_size_h * grid_size_w, -1)
+        return freqs
+
+    t_cos, t_sin = freqs_t
+    h_cos, h_sin = freqs_h
+    w_cos, w_sin = freqs_w
+    cos = combine_time_height_width(t_cos, h_cos, w_cos)
+    sin = combine_time_height_width(t_sin, h_sin, w_sin)
+    return cos, sin
+
+
+def apply_rotary_emb(
+    x: mx.array,
+    freqs_cis: Union[mx.array, Tuple[mx.array]],
+) -> Tuple[mx.array, mx.array]:
+    """
+    Args:
+        x (`mx.array`): array to apply rotary embeddings. [B, H, S, D]
+        freqs_cis (`Tuple[mx.array]`): Precomputed frequency tensor for complex exponentials. ([S, D], [S, D],)
+
+    Returns:
+        Tuple[mx.array, mx.array]: Tuple of modified query tensor and key tensor with rotary embeddings.
+    """
+    cos, sin = freqs_cis  # [S, D]
+    x_real, x_imag = x.reshape(*x.shape[:-1], -1, 2).split(
+        2, axis=-1
+    )  # [B, S, H, D//2]
+    x_rotated = mx.stack([-x_imag, x_real], axis=-1).flatten(3)
+    return x * cos + x_rotated * sin
+
+
 class Attention(nn.Module):
     def __init__(
         self,
@@ -158,6 +279,7 @@ class Attention(nn.Module):
         freqs: mx.array = None,
     ):
         x = mx.concatenate([encoder_hidden_states, hidden_states], axis=1)
+        text_seq_length = encoder_hidden_states.shape[1]
 
         B, N, C = x.shape
         q, k, v = self.to_q(x), self.to_k(x), self.to_v(x)
@@ -167,14 +289,16 @@ class Attention(nn.Module):
         q = self.norm_q(q)
         k = self.norm_k(k)
         if freqs is not None:
-            print("TODO")
-            # query[:, :, text_seq_length:] = apply_rotary_emb(query[:, :, text_seq_length:], image_rotary_emb)
-            # key[:, :, text_seq_length:] = apply_rotary_emb(key[:, :, text_seq_length:], image_rotary_emb)
+            q[:, :, text_seq_length:] = apply_rotary_emb(
+                q[:, :, text_seq_length:], freqs
+            )
+            k[:, :, text_seq_length:] = apply_rotary_emb(
+                k[:, :, text_seq_length:], freqs
+            )
 
         x = mx.fast.scaled_dot_product_attention(q, k, v, scale=self.scale, mask=None)
         x = x.swapaxes(1, 2).reshape(B, N, C)
         x = self.to_out(x)
-        text_seq_length = encoder_hidden_states.shape[1]
         encoder_hidden_states, hidden_states = x.split([text_seq_length], axis=1)
         return hidden_states, encoder_hidden_states
 
@@ -219,7 +343,7 @@ class FeedForward(nn.Module):
         dim: int,
         dim_out: Optional[int] = None,
         mult: int = 4,
-        activation_fn: str = "geglu",
+        activation_fn: str = "gelu",
         inner_dim=None,
         bias: bool = True,
     ):
@@ -230,14 +354,10 @@ class FeedForward(nn.Module):
 
         if activation_fn == "gelu":
             act_fn = GELU(dim, inner_dim, bias=bias)
-        if activation_fn == "gelu-approximate":
+        elif activation_fn == "gelu-approximate":
             act_fn = GELU(dim, inner_dim, approximate="tanh", bias=bias)
-        elif activation_fn == "geglu":
-            act_fn = GEGLU(dim, inner_dim, bias=bias)
-        elif activation_fn == "geglu-approximate":
-            act_fn = ApproximateGELU(dim, inner_dim, bias=bias)
-        elif activation_fn == "swiglu":
-            act_fn = SwiGLU(dim, inner_dim, bias=bias)
+        else:
+            raise ValueError(f"{activation_fn} is not yet implemented.")
 
         self.net = [act_fn, nn.Linear(inner_dim, dim_out, bias=bias)]
 

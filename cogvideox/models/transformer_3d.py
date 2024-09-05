@@ -107,7 +107,7 @@ class CogVideoXBlock(nn.Module):
         attn_hidden_states, attn_encoder_hidden_states = self.attn1(
             hidden_states=norm_hidden_states,
             encoder_hidden_states=norm_encoder_hidden_states,
-            # image_rotary_emb=image_rotary_emb,
+            freqs=image_rotary_emb,
         )
 
         hidden_states = hidden_states + gate_msa * attn_hidden_states
@@ -293,8 +293,7 @@ class Transformer3D(nn.Module):
         emb = self.time_embedding(t_emb, timestep_cond)
 
         # 2. Patch embedding
-        hidden_states = mx.ones(shape=(2, 886, 3072))
-        # hidden_states = self.patch_embed(encoder_hidden_states, hidden_states)
+        hidden_states = self.patch_embed(encoder_hidden_states, hidden_states)
 
         # 3. Position embedding
         text_seq_length = encoder_hidden_states.shape[1]
