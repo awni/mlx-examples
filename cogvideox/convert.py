@@ -331,39 +331,32 @@ def convert_scheduler(path, save_path):
     save_config(config, save_path / "config.json")
 
 
-if __name__ == "__main__":
-    import argparse
+def convert(
+    quantize: bool = False,
+    q_group_size: int = 64,
+    q_bits: int = 4,
+    upload: bool = False,
+):
+    """
+    Convert CogVideoX models to MLX
 
-    parser = argparse.ArgumentParser(description="Convert CogVideoX models to MLX")
-    parser.add_argument(
-        "-q", "--quantize", help="Generate a quantized model.", action="store_true"
-    )
-    parser.add_argument(
-        "--q-group-size", help="Group size for quantization.", type=int, default=64
-    )
-    parser.add_argument(
-        "--q-bits", help="Bits per weight for quantization.", type=int, default=4
-    )
-    parser.add_argument(
-        "--upload",
-        help="Upload to Hugging Face.",
-        default=False,
-        action="store_true",
-    )
-
+    Args:
+        quantize (bool): Quantize the Transformer model. Default: False.
+        q_group_size (int): Group size for quantization. Default: 64.
+        q_bits (int): Bits per weight for quantization. Default: 4.
+        upload (bool): Upload to Hugging Face.
+    """
     args = parser.parse_args()
 
+    # TODO fire, configurable repo
     hf_repo = "THUDM/CogVideoX-5b"
     mlx_repo = "mlx-community/CogVideoX-5b-mlx"
     path = fetch_from_hub(hf_repo)
     save_path = Path("mlx_cogvideox_models")
-    # Convert each model separately
 
-    #    {'scheduler': ['diffusers', 'CogVideoXDDIMScheduler'] 'CogVideoXTransformer3DModel']
-
-    #    convert_tokenizer(path, save_path)
-    #    convert_t5(path, save_path)
-    #    convert_vae(path, save_path)
+    convert_tokenizer(path, save_path)
+    convert_t5(path, save_path)
+    convert_vae(path, save_path)
     convert_transformer(
         path,
         save_path,
@@ -375,3 +368,7 @@ if __name__ == "__main__":
 
     if args.upload:
         upload_to_hub(save_path, mlx_repo, hf_path)
+
+
+if __name__ == "__main__":
+    fire.Fire(convert)

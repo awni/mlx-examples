@@ -1007,6 +1007,8 @@ class AutoencoderKL(nn.Module):
         )
         self.tile_overlap_factor_height = 1 / 6
         self.tile_overlap_factor_width = 1 / 5
+        self.scaling_factor = scaling_factor
+        self.temporal_compression_ratio = temporal_compression_ratio
 
     def _clear_fake_context_parallel_cache(self):
         for name, module in self.named_modules():

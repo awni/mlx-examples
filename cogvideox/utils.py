@@ -7,8 +7,10 @@ from pathlib import Path
 import av
 import mlx.core as mx
 import mlx.nn as nn
+import models
 import numpy as np
 from huggingface_hub import snapshot_download
+from transformers import AutoTokenizer
 
 
 def save_video(x, save_path=None, fps=8):
@@ -61,17 +63,25 @@ def load_model(path, model_class):
     return model
 
 
-def load(repo):
-    # path = Path(
-    #    snapshot_download(
-    #        repo_id=repo,
-    #        allow_patterns=["*.json", "*.safetensors", "*.model"],
-    #    )
-    # )
-    path = Path(repo)
+def load(path_or_repo):
+    path = Path(path_or_repo)
+    if not path.exists():
+        path = Path(
+            snapshot_download(
+                repo_id=path_or_repo,
+                allow_patterns=["*.json", "*.safetensors", "*.model"],
+            )
+        )
 
     text_encoder = load_model(path / "text_encoder", models.T5)
-    # vae = load_model(f"{hf_path}/OpenSora-VAE-v1.2", models.VideoAutoencoder)
-    # model = load_model(f"{hf_path}/OpenSora-STDiT-v3", models.STDiT3)
+    vae = load_model(path / "vae", models.AutoencoderKL)
+    transformer = load_model(path / "transformer", models.Transformer3D)
+    # Silences process fork warnings from transformers
+    import tqdm
+
+    tqdm.tqdm([], disable=True)
     tokenizer = AutoTokenizer.from_pretrained(path / "tokenizer")
-    return text_encoder, tokenizer
+    with open(path / "scheduler/config.json", "r") as f:
+        scheduler_config = json.load(f)
+        scheduler = models.CogVideoXDPMScheduler(**scheduler_config)
+    return text_encoder, vae, transformer, tokenizer, scheduler

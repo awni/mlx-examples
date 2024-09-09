@@ -11,8 +11,27 @@ from .layers import (
     FeedForward,
     TimestepEmbedding,
     Timesteps,
+    get_3d_rotary_pos_embed,
     get_3d_sincos_pos_embed,
 )
+
+
+def get_resize_crop_region_for_grid(src, tgt_width, tgt_height):
+    tw = tgt_width
+    th = tgt_height
+    h, w = src
+    r = h / w
+    if r > (th / tw):
+        resize_height = th
+        resize_width = int(round(th / h * w))
+    else:
+        resize_width = tw
+        resize_height = int(round(tw / w * h))
+
+    crop_top = int(round((th - resize_height) / 2.0))
+    crop_left = int(round((tw - resize_width) / 2.0))
+
+    return (crop_top, crop_left), (crop_top + resize_height, crop_left + resize_width)
 
 
 class CogVideoXBlock(nn.Module):
@@ -216,6 +235,8 @@ class Transformer3D(nn.Module):
         super().__init__()
         inner_dim = num_attention_heads * attention_head_dim
 
+        self.in_channels = in_channels
+        self.attention_head_dim = attention_head_dim
         self.patch_size = patch_size
         post_patch_height = sample_height // patch_size
         post_patch_width = sample_width // patch_size
@@ -281,15 +302,19 @@ class Transformer3D(nn.Module):
         self,
         hidden_states: mx.array,
         encoder_hidden_states: mx.array,
-        timestep: Union[int, float, mx.array],
+        timestep: mx.array,
         timestep_cond: Optional[mx.array] = None,
         image_rotary_emb: Optional[Tuple[mx.array, mx.array]] = None,
     ):
         batch_size, num_frames, height, width, channels = hidden_states.shape
 
+        dtype = self.patch_embed.proj.weight.dtype
+        hidden_states = hidden_states.astype(dtype)
+        encoder_hidden_states = encoder_hidden_states.astype(dtype)
+
         # 1. Time embedding
         t_emb = self.time_proj(timestep)
-        t_emb = t_emb.astype(dtype=hidden_states.dtype)
+        t_emb = t_emb.astype(dtype=dtype)
         emb = self.time_embedding(t_emb, timestep_cond)
 
         # 2. Patch embedding
@@ -337,3 +362,31 @@ class Transformer3D(nn.Module):
         )
         output = output.transpose(0, 1, 2, 5, 3, 6, 4).flatten(2, 3).flatten(3, 4)
         return output
+
+    def compute_rope_freqs(
+        self,
+        height: int,
+        width: int,
+        num_frames: int,
+        vae_scale_factor_spatial: int,
+    ):
+        if not self.use_rotary_positional_embeddings:
+            return None
+
+        dtype = self.patch_embed.proj.weight.dtype
+
+        grid_height = height // (vae_scale_factor_spatial * self.patch_size)
+        grid_width = width // (vae_scale_factor_spatial * self.patch_size)
+        base_size_width = 720 // (vae_scale_factor_spatial * self.patch_size)
+        base_size_height = 480 // (vae_scale_factor_spatial * self.patch_size)
+
+        grid_crops_coords = get_resize_crop_region_for_grid(
+            (grid_height, grid_width), base_size_width, base_size_height
+        )
+        fcos, fsin = get_3d_rotary_pos_embed(
+            embed_dim=self.attention_head_dim,
+            crops_coords=grid_crops_coords,
+            grid_size=(grid_height, grid_width),
+            temporal_size=num_frames,
+        )
+        return fcos.astype(dtype), fsin.astype(dtype)
