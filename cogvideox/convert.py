@@ -1,5 +1,6 @@
 # Copyright © 2024 Apple Inc.
 
+import fire
 import glob
 import json
 from pathlib import Path
@@ -202,20 +203,6 @@ def save_config(
         json.dump(config, fid, indent=4)
 
 
-# def load_stdit(hf_path):
-#    path = fetch_from_hub(hf_path)
-#    with open(path / "config.json", "r") as fid:
-#        config = json.load(fid)
-#    weights = mx.load(str(path / "model.safetensors"))
-#    v = weights["x_embedder.proj.weight"]
-#    weights["x_embedder.proj.weight"] = mx.moveaxis(v, 1, 4)
-#
-#    model = models.STDiT3(**config)
-#
-#    model.load_weights(list(weights.items()))
-#    return model, config
-
-
 def convert_model(
     model,
     config,
@@ -266,7 +253,7 @@ def convert_t5(path, save_path):
     with open(path / "config.json", "r") as fid:
         config = json.load(fid)
     weights = load_weights(path)
-    weights = [(replace(k), mx.array(v)) for k, v in weights.items()]
+    weights = [(replace(k), mx.array(v).astype(mx.bfloat16)) for k, v in weights.items()]
     model = models.T5(**config)
     model.load_weights(weights)
     convert_model(model, config, save_path / "text_encoder")
@@ -287,7 +274,7 @@ def convert_vae(path, save_path):
                 value = value.moveaxis(1, 3)
             if value.ndim == 5:
                 value = value.moveaxis(1, 4)
-        return key, value
+        return key, value.astype(mx.bfloat16)
 
     weights = [convert(k, v) for k, v in weights.items()]
     model.load_weights(weights)
@@ -309,7 +296,7 @@ def convert_transformer(
             v = v.moveaxis(1, 3)
         k = k.replace("to_out.0", "to_out")
         k = k.replace("net.2", "net.1")
-        return k, v
+        return k, v.astype(mx.bfloat16)
 
     weights = load_weights(path)
     model = models.Transformer3D(**config)
@@ -336,6 +323,7 @@ def convert(
     q_group_size: int = 64,
     q_bits: int = 4,
     upload: bool = False,
+    model: str = "5b",
 ):
     """
     Convert CogVideoX models to MLX
@@ -345,12 +333,10 @@ def convert(
         q_group_size (int): Group size for quantization. Default: 64.
         q_bits (int): Bits per weight for quantization. Default: 4.
         upload (bool): Upload to Hugging Face.
+        model (str): One of "2b" or "5b".
     """
-    args = parser.parse_args()
-
-    # TODO fire, configurable repo
-    hf_repo = "THUDM/CogVideoX-5b"
-    mlx_repo = "mlx-community/CogVideoX-5b-mlx"
+    hf_repo = f"THUDM/CogVideoX-{model}"
+    mlx_repo = f"mlx-community/CogVideoX-{model}-mlx"
     path = fetch_from_hub(hf_repo)
     save_path = Path("mlx_cogvideox_models")
 
@@ -360,13 +346,13 @@ def convert(
     convert_transformer(
         path,
         save_path,
-        quantize=args.quantize,
-        q_group_size=args.q_group_size,
-        q_bits=args.q_bits,
+        quantize=quantize,
+        q_group_size=q_group_size,
+        q_bits=q_bits,
     )
     convert_scheduler(path, save_path)
 
-    if args.upload:
+    if upload:
         upload_to_hub(save_path, mlx_repo, hf_path)
 
 

@@ -49,7 +49,7 @@ def encode_prompt(
 
 def generate(
     prompt: str,
-    model_path: str = "mlx-community/CogVideoX-5b",
+    model: str = "mlx-community/CogVideoX-5b",
     output_path: str = "./output.mp4",
     num_inference_steps: int = 50,
     guidance_scale: float = 6.0,
@@ -62,7 +62,7 @@ def generate(
 
     Args:
         prompt (str): The description of the video to be generated.
-        model_path (str): The path of the pre-trained model to be used.
+        model (str): The repo or path of the model.
         output_path (str): The path where the generated video will be saved.
         num_inference_steps (int): Number of steps for the inference process.
             More steps can result in better quality.
@@ -75,7 +75,7 @@ def generate(
         mx.random.seed(seed)
 
     # Load the models
-    text_encoder, vae, transformer, tokenizer, scheduler = utils.load(model_path)
+    text_encoder, vae, transformer, tokenizer, scheduler = utils.load(model)
 
     # Setup scheduler
     use_dynamic_cfg = isinstance(scheduler, models.CogVideoXDPMScheduler)
