@@ -164,24 +164,12 @@ class CogVideoXCausalConv3d(nn.Module):
 
         time_kernel_size, height_kernel_size, width_kernel_size = kernel_size
 
-        self.pad_mode = pad_mode
-        time_pad = dilation * (time_kernel_size - 1) + (1 - stride)
         height_pad = height_kernel_size // 2
         width_pad = width_kernel_size // 2
 
         self.height_pad = height_pad
         self.width_pad = width_pad
-        self.time_pad = time_pad
-        self.time_causal_padding = (
-            width_pad,
-            width_pad,
-            height_pad,
-            height_pad,
-            time_pad,
-            0,
-        )
 
-        self.temporal_dim = 2
         self.time_kernel_size = time_kernel_size
 
         stride = (stride, 1, 1)
@@ -198,11 +186,11 @@ class CogVideoXCausalConv3d(nn.Module):
     def fake_context_parallel_forward(self, inputs: mx.array) -> mx.array:
         kernel_size = self.time_kernel_size
         if kernel_size > 1:
-            cached_inputs = (
-                [self.conv_cache]
+            cached_inputs = [
+                self.conv_cache
                 if self.conv_cache is not None
-                else [inputs[:, :1]] * (kernel_size - 1)
-            )
+                else mx.repeat(inputs[:, :1], (kernel_size - 1), axis=1)
+            ]
             inputs = mx.concatenate(cached_inputs + [inputs], axis=1)
         return inputs
 
@@ -212,7 +200,6 @@ class CogVideoXCausalConv3d(nn.Module):
     def __call__(self, inputs: mx.array) -> mx.array:
         inputs = self.fake_context_parallel_forward(inputs)
 
-        self._clear_fake_context_parallel_cache()
         self.conv_cache = inputs[:, -self.time_kernel_size + 1 :]
 
         pad = [(0, 0)] * inputs.ndim
