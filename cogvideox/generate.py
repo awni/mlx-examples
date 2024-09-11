@@ -76,6 +76,7 @@ def generate(
 
     # Load the models
     text_encoder, vae, transformer, tokenizer, scheduler = utils.load(model)
+    vae.enable_tiling()
 
     # Setup scheduler
     use_dynamic_cfg = isinstance(scheduler, models.CogVideoXDPMScheduler)
@@ -167,8 +168,10 @@ def generate(
     del transformer
 
     # Decode to video
+    latents = latents.astype(vae.decoder.conv_in.conv.weight.dtype)
     latents = (1 / vae.scaling_factor) * latents
     frames = vae.decode(latents).squeeze(0)
+    mx.eval(frames)
 
     # Export the generated frames to a video file
     utils.save_video(frames, output_path, fps=8)

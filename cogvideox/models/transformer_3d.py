@@ -326,7 +326,7 @@ class Transformer3D(nn.Module):
             seq_length = height * width * num_frames // (self.patch_size**2)
 
             pos_embeds = self._pos_embedding[:, : text_seq_length + seq_length]
-            hidden_states = hidden_states + pos_embeds
+            hidden_states = hidden_states + pos_embeds.astype(dtype)
 
         encoder_hidden_states = hidden_states[:, :text_seq_length]
         hidden_states = hidden_states[:, text_seq_length:]
