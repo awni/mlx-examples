@@ -1200,7 +1200,7 @@ class AutoencoderKL(nn.Module):
                     tile = self.blend_v(rows[i - 1][j], tile, blend_extent_height)
                 if j > 0:
                     tile = self.blend_h(row[j - 1], tile, blend_extent_width)
-                result_row.append(tile[:, :, :, :row_limit_height, :row_limit_width])
+                result_row.append(tile[:, :, :row_limit_height, :row_limit_width])
             result_rows.append(mx.concatenate(result_row, axis=3))
 
         return mx.concatenate(result_rows, axis=2)

@@ -34,7 +34,7 @@ def encode_prompt(
                 f"`negative_prompt` has batch size {len(negative_prompt)}, but `prompt`"
                 f"has batch size {len(prompt)}."
             )
-        prompt.extend(negative_prompt)
+        prompt = negative_prompt + prompt
 
     text_inputs = tokenizer(
         prompt,
