@@ -1,12 +1,12 @@
 # Copyright © 2024 Apple Inc.
 
-import fire
 import glob
 import json
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Dict, Tuple, Union
 
+import fire
 import mlx.core as mx
 import mlx.nn as nn
 import models
@@ -76,8 +76,8 @@ def upload_to_hub(path: str, upload_repo: str, hf_path: str):
         converted to MLX format from
         [{hf_path}](https://huggingface.co/{hf_path}).
 
-        This model is intended to be used with the [Open-Sora MLX
-        Example](https://github.com/ml-explore/mlx-examples/tree/main/open-sora).
+        This model is intended to be used with the [CogVideo MLX
+        Example](TODO).
         """
     )
 
@@ -253,7 +253,9 @@ def convert_t5(path, save_path):
     with open(path / "config.json", "r") as fid:
         config = json.load(fid)
     weights = load_weights(path)
-    weights = [(replace(k), mx.array(v).astype(mx.bfloat16)) for k, v in weights.items()]
+    weights = [
+        (replace(k), mx.array(v).astype(mx.bfloat16)) for k, v in weights.items()
+    ]
     model = models.T5(**config)
     model.load_weights(weights)
     convert_model(model, config, save_path / "text_encoder")
